@@ -1,3 +1,8 @@
 /.venv
 /api_config.json
 /test_core.py
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class

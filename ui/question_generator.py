@@ -78,33 +78,48 @@ class QuestionGenerator:
         self.control_frame = ttk.Frame(self.frame)
         self.control_frame.pack(fill=tk.X, pady=(0, 10))
         
+        # Top row of controls
+        self.control_top_frame = ttk.Frame(self.control_frame)
+        self.control_top_frame.pack(fill=tk.X, pady=(0, 5))
+        
         self.generate_btn = ttk.Button(
-            self.control_frame,
+            self.control_top_frame,
             text="Generate Questions",
-            command=self.on_generate_clicked,
-            state=tk.DISABLED
+            command=self.on_generate_clicked
         )
         self.generate_btn.pack(side=tk.LEFT)
         
         self.stop_btn = ttk.Button(
-            self.control_frame,
+            self.control_top_frame,
             text="Stop",
             command=self.stop_generation,
             state=tk.DISABLED
         )
         self.stop_btn.pack(side=tk.LEFT, padx=(5, 0))
         
+        # Bottom row - options
+        self.options_frame = ttk.Frame(self.control_frame)
+        self.options_frame.pack(fill=tk.X)
+        
+        self.skip_existing_var = tk.BooleanVar(value=True)
+        self.skip_existing_cb = ttk.Checkbutton(
+            self.options_frame,
+            text="Skip answers that already have questions",
+            variable=self.skip_existing_var
+        )
+        self.skip_existing_cb.pack(side=tk.LEFT)
+        
         # Progress bar
         self.progress_var = tk.DoubleVar()
         self.progress_bar = ttk.Progressbar(
-            self.control_frame,
+            self.control_top_frame,
             variable=self.progress_var,
             maximum=100,
             length=200
         )
         self.progress_bar.pack(side=tk.RIGHT, padx=(10, 0))
         
-        self.progress_label = ttk.Label(self.control_frame, text="")
+        self.progress_label = ttk.Label(self.control_top_frame, text="")
         self.progress_label.pack(side=tk.RIGHT, padx=(10, 5))
         
         # Q&A Pairs display
@@ -263,7 +278,22 @@ class QuestionGenerator:
         if self.get_answers_callback:
             answers = self.get_answers_callback()
             if answers:
-                self.generate_questions(answers)
+                # Filter answers if skip existing is enabled
+                if self.skip_existing_var.get():
+                    existing_answers = {pair['answer'] for pair in self.qa_pairs}
+                    filtered_answers = [answer for answer in answers if answer not in existing_answers]
+                    
+                    if not filtered_answers:
+                        messagebox.showinfo("Info", f"All {len(answers)} answers already have questions. Uncheck 'Skip answers that already have questions' to regenerate.")
+                        return
+                    elif len(filtered_answers) < len(answers):
+                        skipped_count = len(answers) - len(filtered_answers)
+                        if messagebox.askyesno("Confirm", f"Found {len(filtered_answers)} new answers to process.\nSkipping {skipped_count} answers that already have questions.\n\nContinue?"):
+                            self.generate_questions(filtered_answers)
+                    else:
+                        self.generate_questions(filtered_answers)
+                else:
+                    self.generate_questions(answers)
             else:
                 messagebox.showwarning("Warning", "No answers available. Add some answers first.")
         else:
@@ -275,9 +305,21 @@ class QuestionGenerator:
             messagebox.showwarning("Warning", "No answers to generate questions for")
             return
         
+        # Create client if it doesn't exist
         if not self.llm_client:
-            messagebox.showerror("Error", "Please configure and test API connection first")
-            return
+            if not self.api_key_var.get().strip():
+                messagebox.showerror("Error", "Please enter an API key first")
+                return
+            
+            try:
+                config = self.create_api_config()
+                self.llm_client = LLMClient(config)
+                self.api_config = config
+                # Enable the button for future use
+                self.generate_btn.config(state=tk.NORMAL)
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to create API client:\n{str(e)}")
+                return
         
         self.start_generation(answers)
     
@@ -420,6 +462,11 @@ class QuestionGenerator:
             self.qa_pairs = []
             self.refresh_qa_display()
             self.generation_callback(self.qa_pairs)
+    
+    def load_qa_pairs(self, qa_pairs: List[Dict[str, str]]):
+        """Load Q&A pairs from external source"""
+        self.qa_pairs = qa_pairs[:]
+        self.refresh_qa_display()
 
 class QAEditDialog:
     """Dialog for editing Q&A pairs"""

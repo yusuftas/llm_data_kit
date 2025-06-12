@@ -6,6 +6,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
 import json
 import os
+from datetime import datetime
 from typing import Dict, List, Any, Optional
 
 from core.document_parser import DocumentParser
@@ -71,8 +72,8 @@ class MainWindow:
         menubar.add_cascade(label="File", menu=file_menu)
         file_menu.add_command(label="Open Document...", command=self.open_document, accelerator="Ctrl+O")
         file_menu.add_separator()
-        file_menu.add_command(label="Save Answers...", command=self.save_answers, accelerator="Ctrl+S")
-        file_menu.add_command(label="Load Answers...", command=self.load_answers, accelerator="Ctrl+L")
+        file_menu.add_command(label="Save Answers & Q&A Pairs...", command=self.save_answers, accelerator="Ctrl+S")
+        file_menu.add_command(label="Load Answers & Q&A Pairs...", command=self.load_answers, accelerator="Ctrl+L")
         file_menu.add_separator()
         file_menu.add_command(label="Export Training Data...", command=self.export_training_data, accelerator="Ctrl+E")
         file_menu.add_separator()
@@ -154,13 +155,13 @@ class MainWindow:
         self.status_var.set(f"Generated {len(qa_pairs)} Q&A pairs")
     
     def save_answers(self):
-        """Save current answers to file"""
-        if not self.answers:
-            messagebox.showwarning("Warning", "No answers to save")
+        """Save current answers and Q&A pairs to file"""
+        if not self.answers and not self.qa_pairs:
+            messagebox.showwarning("Warning", "No answers or Q&A pairs to save")
             return
         
         file_path = filedialog.asksaveasfilename(
-            title="Save Answers",
+            title="Save Answers & Q&A Pairs",
             defaultextension=".json",
             filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
         )
@@ -169,21 +170,24 @@ class MainWindow:
             try:
                 data = {
                     'answers': self.answers,
-                    'document_info': self.current_document['metadata'] if self.current_document else None
+                    'qa_pairs': self.qa_pairs,
+                    'document_info': self.current_document['metadata'] if self.current_document else None,
+                    'saved_at': datetime.now().isoformat(),
+                    'version': '1.0'
                 }
                 
                 with open(file_path, 'w', encoding='utf-8') as f:
                     json.dump(data, f, indent=2, ensure_ascii=False)
                 
-                self.status_var.set(f"Saved {len(self.answers)} answers")
+                self.status_var.set(f"Saved {len(self.answers)} answers and {len(self.qa_pairs)} Q&A pairs")
                 
             except Exception as e:
-                messagebox.showerror("Error", f"Failed to save answers:\n{str(e)}")
+                messagebox.showerror("Error", f"Failed to save data:\n{str(e)}")
     
     def load_answers(self):
-        """Load answers from file"""
+        """Load answers and Q&A pairs from file"""
         file_path = filedialog.askopenfilename(
-            title="Load Answers",
+            title="Load Answers & Q&A Pairs",
             filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
         )
         
@@ -192,15 +196,28 @@ class MainWindow:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                 
+                # Load answers
                 if 'answers' in data:
                     self.answers = data['answers']
                     self.answer_manager.load_answers(self.answers)
-                    self.status_var.set(f"Loaded {len(self.answers)} answers")
                 else:
-                    messagebox.showerror("Error", "Invalid answers file format")
+                    self.answers = []
+                
+                # Load Q&A pairs if available
+                if 'qa_pairs' in data:
+                    self.qa_pairs = data['qa_pairs']
+                    self.question_generator.load_qa_pairs(self.qa_pairs)
+                else:
+                    self.qa_pairs = []
+                
+                status_msg = f"Loaded {len(self.answers)} answers"
+                if self.qa_pairs:
+                    status_msg += f" and {len(self.qa_pairs)} Q&A pairs"
+                
+                self.status_var.set(status_msg)
                 
             except Exception as e:
-                messagebox.showerror("Error", f"Failed to load answers:\n{str(e)}")
+                messagebox.showerror("Error", f"Failed to load data:\n{str(e)}")
     
     def export_training_data(self):
         """Export training data in LLama format"""
@@ -219,7 +236,8 @@ class MainWindow:
             messagebox.showwarning("Warning", "No answers available. Add some answers first.")
             return
         
-        self.question_generator.generate_questions(self.answers)
+        # Let the question generator handle the filtering based on skip setting
+        self.question_generator.on_generate_clicked()
     
     def clear_answers(self):
         """Clear all answers"""

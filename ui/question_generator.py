@@ -248,10 +248,6 @@ class QuestionGenerator:
             self.provider_var.set(config_data.get('provider', 'openrouter'))
             self.model_var.set(config_data.get('model', 'openai/gpt-3.5-turbo'))
             self.api_key_var.set(config_data.get('api_key', ''))
-            
-            # Test connection if API key is present
-            if self.api_key_var.get():
-                self.test_api_connection()
         
         except FileNotFoundError:
             pass  # Config file doesn't exist yet

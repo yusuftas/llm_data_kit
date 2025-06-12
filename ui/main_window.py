@@ -149,6 +149,7 @@ class MainWindow:
     
     def on_questions_generated(self, qa_pairs: List[Dict[str, str]]):
         """Handle generated questions"""
+        print(f"Main window received {len(qa_pairs)} Q&A pairs")  # Debug
         self.qa_pairs = qa_pairs
         self.status_var.set(f"Generated {len(qa_pairs)} Q&A pairs")
     
@@ -203,6 +204,7 @@ class MainWindow:
     
     def export_training_data(self):
         """Export training data in LLama format"""
+        print(f"Export called. QA pairs in main window: {len(self.qa_pairs)}")  # Debug
         if not self.qa_pairs:
             messagebox.showwarning("Warning", "No Q&A pairs to export. Generate questions first.")
             return

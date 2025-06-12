@@ -228,7 +228,10 @@ class ExportDialog:
     
     def export_data(self):
         """Export the data to file"""
+        print(f"Export button clicked. QA pairs count: {len(self.qa_pairs)}")  # Debug
+        
         if self.validate_data_var.get() and not self.validate_data():
+            print("Validation failed")  # Debug
             return
         
         format_type = self.format_var.get()
@@ -246,10 +249,11 @@ class ExportDialog:
             title="Export Training Data",
             defaultextension=default_ext,
             filetypes=file_types,
-            initialname=f"llama_training_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}{default_ext}"
+            initialfile=f"llama_training_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}{default_ext}"
         )
         
         if not file_path:
+            print("File dialog was canceled")  # Debug
             return
         
         try:
@@ -275,6 +279,7 @@ class ExportDialog:
             # Add metadata if requested
             if self.include_metadata_var.get() and format_type.endswith('_json'):
                 # For JSON formats, wrap in metadata
+                data_obj = json.loads(content)
                 metadata = {
                     "metadata": {
                         "export_date": datetime.now().isoformat(),
@@ -282,7 +287,7 @@ class ExportDialog:
                         "format": format_type,
                         "source": "LLama Fine-tuning UI Tool"
                     },
-                    "data": json.loads(content)
+                    "data": data_obj
                 }
                 content = json.dumps(metadata, indent=2, ensure_ascii=False)
             

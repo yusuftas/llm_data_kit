@@ -88,6 +88,8 @@ class MainWindow:
         # Tools menu
         tools_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label="Tools", menu=tools_menu)
+        tools_menu.add_command(label="Auto Extract Answers", command=self.auto_extract_answers)
+        tools_menu.add_separator()
         tools_menu.add_command(label="Generate Questions", command=self.generate_questions)
         tools_menu.add_command(label="API Settings", command=self.show_api_settings)
         
@@ -128,6 +130,7 @@ class MainWindow:
                 
                 self.current_document = self.document_parser.parse_document(file_path)
                 self.document_viewer.load_document(self.current_document)
+                self.answer_manager.set_current_document(self.current_document)
                 
                 file_name = os.path.basename(file_path)
                 self.status_var.set(f"Loaded: {file_name}")
@@ -229,6 +232,14 @@ class MainWindow:
         dialog = ExportDialog(self.root, self.qa_pairs)
         if dialog.result:
             self.status_var.set("Training data exported successfully")
+    
+    def auto_extract_answers(self):
+        """Auto-extract answers from current document"""
+        if not self.current_document:
+            messagebox.showwarning("Warning", "No document loaded. Please open a document first.")
+            return
+        
+        self.answer_manager.show_auto_extract_dialog()
     
     def generate_questions(self):
         """Generate questions for current answers"""

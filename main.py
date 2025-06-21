@@ -12,10 +12,7 @@ import os
 # Add the project root to the Python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-try:
-    from ui.main_window_fixed import MainWindow
-except ImportError:
-    from ui.main_window import MainWindow
+from ui.main_window import MainWindow
 
 def main():
     """Main application entry point"""

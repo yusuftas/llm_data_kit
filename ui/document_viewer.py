@@ -74,6 +74,7 @@ class DocumentViewer:
         self.text_widget.bind('<<Selection>>', self.on_text_selection)
         self.text_widget.bind('<Button-1>', self.on_click)
         self.text_widget.bind('<ButtonRelease-1>', self.on_release)
+        self.text_widget.bind('<Button-3>', self.on_right_click)  # Right click to add answer
     
     def load_document(self, document_data: Dict[str, Any]):
         """Load document content into the viewer"""
@@ -217,3 +218,14 @@ class DocumentViewer:
             self.text_widget.tag_delete(tag_name)
         except:
             pass
+    
+    def on_right_click(self, event):
+        """Handle right click to directly add selected text as answer"""
+        try:
+            selected_text = self.text_widget.selection_get()
+            if selected_text.strip():
+                self.add_selected_text()
+        except tk.TclError:
+            # No selection, do nothing
+            pass
+    

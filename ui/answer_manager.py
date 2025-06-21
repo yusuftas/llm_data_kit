@@ -204,7 +204,16 @@ class AnswerManager:
             messagebox.showwarning("Warning", "No document loaded for extraction")
             return
         
-        dialog = AutoExtractionDialog(self.parent, self.current_document, self.answer_extractor)
+        # Check if document is large enough to use optimized dialog
+        metadata = self.current_document.get('metadata', {})
+        use_optimized = metadata.get('is_lazy', False) or metadata.get('total_characters', 0) > 100000
+        
+        if use_optimized:
+            from ui.optimized_auto_extraction_dialog import OptimizedAutoExtractionDialog
+            dialog = OptimizedAutoExtractionDialog(self.parent, self.current_document)
+        else:
+            dialog = AutoExtractionDialog(self.parent, self.current_document, self.answer_extractor)
+        
         if dialog.result:
             # Add selected candidates as answers
             for candidate in dialog.result:

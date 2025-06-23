@@ -7,7 +7,7 @@ import time
 from typing import List, Dict, Any, Callable, Optional, Generator
 from dataclasses import dataclass
 from core.answer_extractor import AnswerExtractor, AnswerCandidate
-from core.optimized_document_parser import OptimizedDocumentParser
+from core.document_parser import DocumentParser
 
 @dataclass
 class ExtractionProgress:
@@ -24,7 +24,7 @@ class OptimizedAnswerExtractor:
     
     def __init__(self, base_extractor: Optional[AnswerExtractor] = None):
         self.base_extractor = base_extractor or AnswerExtractor()
-        self.doc_parser = OptimizedDocumentParser()
+        self.doc_parser = DocumentParser()
         self.is_extracting = False
         self.stop_extraction = False
         

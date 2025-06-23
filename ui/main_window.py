@@ -9,20 +9,13 @@ import os
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 
-from core.document_parser import DocumentParser
-from ui.document_viewer import DocumentViewer
 from ui.answer_manager import AnswerManager
 from ui.question_generator import QuestionGenerator
 from ui.export_dialog import ExportDialog
 
 # Try to import optimized components
-try:
-    from core.optimized_document_parser import OptimizedDocumentParser
-    from ui.optimized_document_viewer import OptimizedDocumentViewer
-    OPTIMIZATIONS_AVAILABLE = True
-except ImportError:
-    OPTIMIZATIONS_AVAILABLE = False
-    print("Note: Optimized components not available, using standard components only")
+from core.document_parser import DocumentParser
+from ui.document_viewer import DocumentViewer
 
 class MainWindow:
     """Main application window with fixed viewer initialization"""
@@ -34,20 +27,10 @@ class MainWindow:
         
         # Initialize components
         self.document_parser = DocumentParser()
-        if OPTIMIZATIONS_AVAILABLE:
-            print("Optimizations available")
-            self.optimized_parser = OptimizedDocumentParser()
-            # File size threshold for switching to optimized components (5MB)
-            self.optimization_threshold = 2 * 1024 * 1024
-        else:
-            print("Optimizations NOT!! available")
-            self.optimized_parser = None
-            self.optimization_threshold = float('inf')  # Never use optimized mode
             
         self.current_document = None
         self.answers = []
         self.qa_pairs = []
-        self.using_optimized_viewer = False
         
         self.setup_ui()
         self.setup_menu()
@@ -64,7 +47,6 @@ class MainWindow:
         
         # Initialize document viewer (always start with regular viewer)
         self.document_viewer = DocumentViewer(self.left_frame, self.on_text_selected)
-        self.using_optimized_viewer = False
         
         # Right panel - Answer management and controls
         self.right_frame = ttk.Frame(self.main_paned)
@@ -118,10 +100,6 @@ class MainWindow:
         help_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label="Help", menu=help_menu)
         help_menu.add_command(label="About", command=self.show_about)
-        if OPTIMIZATIONS_AVAILABLE:
-            help_menu.add_separator()
-            help_menu.add_command(label="Switch to Optimized Viewer", command=self.force_optimized_viewer)
-            help_menu.add_command(label="Switch to Standard Viewer", command=self.force_standard_viewer)
         
         # Keyboard shortcuts
         self.root.bind('<Control-o>', lambda e: self.open_document())
@@ -155,34 +133,20 @@ class MainWindow:
                 
                 # Check file size to determine which parser to use
                 file_size = os.path.getsize(file_path)
-                use_optimized = (OPTIMIZATIONS_AVAILABLE and 
-                               file_size > self.optimization_threshold)
                 
-                if use_optimized:
-                    self.status_var.set("Loading large document (optimized mode)...")
-                    self.root.update()
-                    
-                    # Use optimized parser with progress callback
-                    def progress_callback(current, total):
-                        if total > 0:
-                            progress = (current / total) * 100
-                            self.status_var.set(f"Loading document... {progress:.0f}%")
-                            self.root.update()
-                    
-                    self.current_document = self.optimized_parser.parse_document_lazy(
-                        file_path, progress_callback
-                    )
-                    
-                    # Switch to optimized viewer if available
-                    if not self.using_optimized_viewer:
-                        self._switch_to_optimized_viewer()
-                else:
-                    # Use regular parser for small files
-                    self.current_document = self.document_parser.parse_document(file_path)
-                    
-                    # Switch to regular viewer if currently using optimized
-                    if self.using_optimized_viewer:
-                        self._switch_to_regular_viewer()
+                self.status_var.set("Loading large document (optimized mode)...")
+                self.root.update()
+                
+                # Use optimized parser with progress callback
+                def progress_callback(current, total):
+                    if total > 0:
+                        progress = (current / total) * 100
+                        self.status_var.set(f"Loading document... {progress:.0f}%")
+                        self.root.update()
+                
+                self.current_document = self.document_parser.parse_document_lazy(
+                    file_path, progress_callback
+                )
                 
                 # Load document into viewer
                 self.document_viewer.load_document(self.current_document)
@@ -190,65 +154,12 @@ class MainWindow:
                 
                 file_name = os.path.basename(file_path)
                 file_size_mb = file_size / (1024 * 1024)
-                mode = "optimized" if use_optimized else "standard"
-                self.status_var.set(f"Loaded: {file_name} ({file_size_mb:.1f}MB, {mode} mode)")
+                self.status_var.set(f"Loaded: {file_name} ({file_size_mb:.1f}MB")
                 self.root.title(f"LLama Fine-Tuning Tool - {file_name}")
                 
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to load document:\n{str(e)}")
                 self.status_var.set("Error loading document")
-    
-    def _switch_to_optimized_viewer(self):
-        """Switch to optimized document viewer"""
-        if not OPTIMIZATIONS_AVAILABLE:
-            messagebox.showwarning("Warning", "Optimized viewer not available")
-            return
-            
-        try:
-            # Destroy current viewer
-            if self.document_viewer and hasattr(self.document_viewer, 'frame'):
-                self.document_viewer.frame.destroy()
-            
-            # Create new optimized viewer
-            self.document_viewer = OptimizedDocumentViewer(self.left_frame, self.on_text_selected)
-            self.using_optimized_viewer = True
-            self.status_var.set("Switched to optimized viewer")
-            
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to switch to optimized viewer: {e}")
-            # Fallback to regular viewer
-            self._switch_to_regular_viewer()
-    
-    def _switch_to_regular_viewer(self):
-        """Switch to regular document viewer"""
-        try:
-            # Destroy current viewer
-            if self.document_viewer and hasattr(self.document_viewer, 'frame'):
-                self.document_viewer.frame.destroy()
-            
-            # Create new regular viewer
-            self.document_viewer = DocumentViewer(self.left_frame, self.on_text_selected)
-            self.using_optimized_viewer = False
-            self.status_var.set("Switched to standard viewer")
-            
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to switch to standard viewer: {e}")
-    
-    def force_optimized_viewer(self):
-        """Force switch to optimized viewer (for testing)"""
-        if not OPTIMIZATIONS_AVAILABLE:
-            messagebox.showwarning("Warning", "Optimized components not available")
-            return
-            
-        self._switch_to_optimized_viewer()
-        if self.current_document:
-            self.document_viewer.load_document(self.current_document)
-    
-    def force_standard_viewer(self):
-        """Force switch to standard viewer (for testing)"""
-        self._switch_to_regular_viewer()
-        if self.current_document:
-            self.document_viewer.load_document(self.current_document)
     
     def on_text_selected(self, selected_text: str, start_pos: int, end_pos: int):
         """Handle text selection from document viewer"""
@@ -382,20 +293,18 @@ class MainWindow:
     def show_about(self):
         """Show about dialog"""
         about_text = """LLama 3.2 Fine-Tuning Data Preparation Tool
+            A Python application for creating high-quality question-answer pairs 
+            from documents to fine-tune LLama 3.2 models.
 
-A Python application for creating high-quality question-answer pairs 
-from documents to fine-tune LLama 3.2 models.
-
-Features:
-• Load PDF and text documents
-• Select text portions as answers
-• Generate questions using LLM APIs
-• Export in LLama-compatible format
-"""
+            Features:
+            • Load PDF and text documents
+            • Select text portions as answers
+            • Generate questions using LLM APIs
+            • Export in LLama-compatible format
+        """
         
-        if OPTIMIZATIONS_AVAILABLE:
-            about_text += "• Optimized for large documents (>5MB)\n"
-            about_text += "• Lazy loading and pagination support\n"
+        about_text += "• Optimized for large documents (>5MB)\n"
+        about_text += "• Lazy loading and pagination support\n"
         
         about_text += "\nVersion: 1.0.0"
         

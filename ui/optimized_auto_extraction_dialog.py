@@ -9,7 +9,7 @@ import threading
 import time
 import sys,os
 
-from core.optimized_answer_extractor import OptimizedAnswerExtractor, ExtractionProgress
+from core.answer_extractor import AnswerExtractor, ExtractionProgress
 from core.answer_extractor import AnswerCandidate
 
 class OptimizedAutoExtractionDialog:
@@ -24,7 +24,7 @@ class OptimizedAutoExtractionDialog:
         self.selected_indices = set()
         
         # Optimized extractor
-        self.extractor = OptimizedAnswerExtractor()
+        self.extractor = AnswerExtractor()
         
         # Virtual scrolling settings
         self.items_per_page = 100

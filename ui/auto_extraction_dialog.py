@@ -9,10 +9,9 @@ import threading
 import time
 import sys,os
 
-from core.answer_extractor import AnswerExtractor, ExtractionProgress
-from core.answer_extractor import AnswerCandidate
+from core.answer_extractor import AnswerExtractor, AnswerCandidate, ExtractionProgress
 
-class OptimizedAutoExtractionDialog:
+class AutoExtractionDialog:
     """Optimized auto-extraction dialog for large documents"""
     
     def __init__(self, parent: tk.Widget, document_data: Dict[str, Any]):

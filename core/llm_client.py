@@ -26,7 +26,7 @@ class LLMClient:
     API_CONFIGS = {
         'openrouter': {
             'base_url': 'https://openrouter.ai/api/v1/chat/completions',
-            'default_model': 'deepseek/deepseek-chat-v3:free',
+            'default_model': 'deepseek/deepseek-chat-v3-0324:free',
         },
         'openai': {
             'base_url': 'https://api.openai.com/v1/chat/completions',
@@ -362,30 +362,37 @@ Return only the JSON array, no additional text."""
     def _parse_qa_response(self, response_text: str) -> List[Dict[str, str]]:
         """Parse LLM response into Q&A pairs"""
         try:
-            # Try to extract JSON from response
-            json_match = re.search(r'\[.*\]', response_text, re.DOTALL)
-            if json_match:
-                json_str = json_match.group(0)
-                qa_pairs = json.loads(json_str)
-                
-                # Validate and clean the pairs
-                validated_pairs = []
-                for pair in qa_pairs:
-                    if isinstance(pair, dict) and 'question' in pair and 'answer' in pair:
-                        question = pair['question'].strip()
-                        answer = pair['answer'].strip()
-                        
-                        # Basic validation
-                        if len(question) > 10 and len(answer) > 20:
-                            validated_pairs.append({
-                                'question': question,
-                                'answer': answer
-                            })
-                
-                return validated_pairs
+            # First, try to extract JSON from markdown code blocks (```json ... ```)
+            json_code_block_match = re.search(r'```(?:json)?\s*(\[.*?\])\s*```', response_text, re.DOTALL | re.IGNORECASE)
+            if json_code_block_match:
+                json_str = json_code_block_match.group(1)
             else:
-                # Fallback: try to parse line-by-line format
-                return self._parse_fallback_format(response_text)
+                # Fallback: Try to extract raw JSON array from response
+                json_match = re.search(r'\[.*\]', response_text, re.DOTALL)
+                if json_match:
+                    json_str = json_match.group(0)
+                else:
+                    # No JSON found, try fallback parsing
+                    return self._parse_fallback_format(response_text)
+            
+            # Parse the JSON
+            qa_pairs = json.loads(json_str)
+            
+            # Validate and clean the pairs
+            validated_pairs = []
+            for pair in qa_pairs:
+                if isinstance(pair, dict) and 'question' in pair and 'answer' in pair:
+                    question = pair['question'].strip()
+                    answer = pair['answer'].strip()
+                    
+                    # Basic validation
+                    if len(question) > 10 and len(answer) > 20:
+                        validated_pairs.append({
+                            'question': question,
+                            'answer': answer
+                        })
+            
+            return validated_pairs
                 
         except json.JSONDecodeError:
             # Fallback parsing

@@ -94,7 +94,7 @@ This is a Python desktop application designed to create high-quality question-an
 
 ### Configuration
 - **API Config**: `api_config.json` stores LLM provider settings
-- **Current Setup**: OpenRouter with DeepSeek Chat V3 model (deepseek/deepseek-chat-v3:free)
+- **Current Setup**: OpenRouter with DeepSeek Chat V3 model (deepseek/deepseek-chat-v3-0324:free)
 
 ## File Structure
 ```
@@ -155,7 +155,7 @@ This application represents a complete pipeline for preparing high-quality fine-
 
 ### AI Extraction Mode
 - **New Feature**: Added AI-powered Q&A pair extraction mode
-- **Model**: Uses DeepSeek Chat V3 (deepseek/deepseek-chat-v3:free) via OpenRouter
+- **Model**: Uses DeepSeek Chat V3 (deepseek/deepseek-chat-v3-0324:free) via OpenRouter
 - **Functionality**: Processes documents chunk-by-chunk to generate complete Q&A pairs
 - **Integration**: Automatically adds answers to answer manager and questions to Q&A generator
 - **Benefits**: Faster dataset creation with high-quality, contextually appropriate questions

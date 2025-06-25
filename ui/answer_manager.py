@@ -16,6 +16,7 @@ class AnswerManager:
         self.answers = []
         self.current_document = None
         self.extraction_candidates = []
+        self.qa_addition_callback = None  # Callback for adding Q&A pairs from AI extraction
         
         self.setup_ui()
     
@@ -197,6 +198,10 @@ class AnswerManager:
         self.current_document = document_data
         self.auto_extract_btn.config(state=tk.NORMAL if document_data else tk.DISABLED)
     
+    def set_qa_addition_callback(self, callback: Callable[[List[Dict[str, str]]], None]):
+        """Set callback for adding Q&A pairs from AI extraction"""
+        self.qa_addition_callback = callback
+    
     def show_auto_extract_dialog(self):
         """Show auto-extraction dialog"""
         if not self.current_document:
@@ -212,7 +217,13 @@ class AnswerManager:
             for candidate in dialog.result:
                 self.add_answer(candidate.text)
             
-            messagebox.showinfo("Success", f"Added {len(dialog.result)} answers from auto-extraction")
+            # Handle AI extraction - add Q&A pairs to question generator
+            if hasattr(dialog, 'ai_qa_pairs') and dialog.ai_qa_pairs and self.qa_addition_callback:
+                self.qa_addition_callback(dialog.ai_qa_pairs)
+                messagebox.showinfo("Success", 
+                    f"Added {len(dialog.result)} answers and {len(dialog.ai_qa_pairs)} Q&A pairs from AI extraction")
+            else:
+                messagebox.showinfo("Success", f"Added {len(dialog.result)} answers from auto-extraction")
     
     def refresh_list(self):
         """Refresh the listbox display"""

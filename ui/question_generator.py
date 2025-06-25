@@ -467,6 +467,12 @@ class QuestionGenerator:
         """Load Q&A pairs from external source"""
         self.qa_pairs = qa_pairs[:]
         self.refresh_qa_display()
+    
+    def add_qa_pairs(self, qa_pairs: List[Dict[str, str]]):
+        """Add Q&A pairs to existing collection"""
+        self.qa_pairs.extend(qa_pairs)
+        self.refresh_qa_display()
+        self.generation_callback(self.qa_pairs)
 
 class QAEditDialog:
     """Dialog for editing Q&A pairs"""

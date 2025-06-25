@@ -59,6 +59,9 @@ class MainWindow:
         self.question_generator = QuestionGenerator(self.right_frame, self.on_questions_generated)
         self.question_generator.set_get_answers_callback(lambda: self.answers)
         
+        # Set up callback for AI extraction Q&A pairs
+        self.answer_manager.set_qa_addition_callback(self.question_generator.add_qa_pairs)
+        
         # Status bar
         self.status_var = tk.StringVar()
         self.status_var.set("Ready")

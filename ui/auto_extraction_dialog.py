@@ -21,6 +21,7 @@ class AutoExtractionDialog:
         self.candidates = []
         self.displayed_candidates = []  # Subset currently displayed
         self.selected_indices = set()
+        self.ai_qa_pairs = []  # Store Q&A pairs from AI extraction
         
         # Optimized extractor
         self.extractor = AnswerExtractor()
@@ -121,7 +122,8 @@ class AutoExtractionDialog:
             'lists': tk.BooleanVar(value=True),
             'definitions': tk.BooleanVar(value=True),
             'facts': tk.BooleanVar(value=True),
-            'procedures': tk.BooleanVar(value=False)
+            'procedures': tk.BooleanVar(value=False),
+            'ai': tk.BooleanVar(value=False)
         }
         
         method_labels = {
@@ -130,7 +132,8 @@ class AutoExtractionDialog:
             'lists': 'List Items',
             'definitions': 'Definitions',
             'facts': 'Facts & Statistics',
-            'procedures': 'Procedures & Steps'
+            'procedures': 'Procedures & Steps',
+            'ai': 'AI Extraction (Q&A Pairs)'
         }
         
         # Arrange checkboxes in two columns
@@ -141,12 +144,17 @@ class AutoExtractionDialog:
         
         methods_list = list(self.method_vars.keys())
         for i, method in enumerate(methods_list):
-            frame = left_frame if i < 3 else right_frame
-            ttk.Checkbutton(
+            frame = left_frame if i < 4 else right_frame
+            checkbox = ttk.Checkbutton(
                 frame,
                 text=method_labels[method],
                 variable=self.method_vars[method]
-            ).pack(anchor=tk.W, pady=2)
+            )
+            checkbox.pack(anchor=tk.W, pady=2)
+            
+            # Add special handling for AI method
+            if method == 'ai':
+                checkbox.configure(command=self.on_ai_method_changed)
         
         # Filter options
         filter_frame = ttk.Frame(options_frame)
@@ -179,6 +187,16 @@ class AutoExtractionDialog:
         ttk.Label(filter_row2, text="Max Candidates:").pack(side=tk.LEFT)
         self.max_candidates_var = tk.StringVar(value="5000")
         ttk.Entry(filter_row2, textvariable=self.max_candidates_var, width=8).pack(side=tk.LEFT, padx=(5, 0))
+        
+        # AI method warning
+        self.ai_warning_frame = ttk.Frame(options_frame)
+        self.ai_warning_label = ttk.Label(
+            self.ai_warning_frame,
+            text="⚠️ AI Extraction will use your configured API and may consume quota",
+            foreground="orange",
+            font=('Arial', 9)
+        )
+        self.ai_warning_label.pack()
         
         # Extract button
         extract_btn = ttk.Button(options_frame, text="Start Extraction", command=self.start_extraction)
@@ -214,6 +232,24 @@ class AutoExtractionDialog:
         
         # Initially hide progress section
         self.progress_frame.pack_forget()
+    
+    def on_ai_method_changed(self):
+        """Handle AI method checkbox change"""
+        if self.method_vars['ai'].get():
+            # Show warning and handle mutual exclusivity
+            self.ai_warning_frame.pack(fill=tk.X, pady=(5, 0))
+            
+            # When AI is selected, disable other methods
+            for method in ['sentences', 'paragraphs', 'lists', 'definitions', 'facts', 'procedures']:
+                self.method_vars[method].set(False)
+        else:
+            # Hide warning
+            self.ai_warning_frame.pack_forget()
+            
+            # Re-enable some default methods if none are selected
+            if not any(self.method_vars[method].get() for method in self.method_vars.keys()):
+                self.method_vars['sentences'].set(True)
+                self.method_vars['paragraphs'].set(True)
     
     def create_results_section(self, parent):
         """Create results section with virtual scrolling"""
@@ -371,6 +407,17 @@ class AutoExtractionDialog:
     def on_extraction_complete(self, candidates: List[AnswerCandidate]):
         """Handle extraction completion"""
         self.candidates = candidates
+        
+        # Special handling for AI extraction - also store Q&A pairs
+        if any(c.extraction_method == 'ai' for c in candidates):
+            self.ai_qa_pairs = []
+            for candidate in candidates:
+                if candidate.extraction_method == 'ai' and candidate.context:
+                    self.ai_qa_pairs.append({
+                        'question': candidate.context,
+                        'answer': candidate.text
+                    })
+        
         self.update_results_display()
         
         self.progress_label.config(text=f"Complete - {len(candidates)} candidates found")
@@ -495,7 +542,7 @@ class AutoExtractionDialog:
         """Show full details of a candidate"""
         detail_window = tk.Toplevel(self.dialog)
         detail_window.title("Candidate Details")
-        detail_window.geometry("600x400")
+        detail_window.geometry("600x500")
         detail_window.transient(self.dialog)
         
         frame = ttk.Frame(detail_window, padding=10)
@@ -505,17 +552,23 @@ class AutoExtractionDialog:
         info_text = f"Method: {candidate.extraction_method}\n"
         info_text += f"Confidence: {candidate.confidence:.2f}\n"
         info_text += f"Length: {len(candidate.text)} characters\n"
-        info_text += f"Position: {candidate.start_pos}-{candidate.end_pos}\n\n"
+        info_text += f"Position: {candidate.start_pos}-{candidate.end_pos}\n"
+        
+        if candidate.extraction_method == 'ai' and candidate.context:
+            info_text += f"\nGenerated Question: {candidate.context}\n"
+        
+        info_text += "\n"
         
         ttk.Label(frame, text=info_text, font=('Arial', 10)).pack(anchor=tk.W)
         
         # Full text
-        text_widget = tk.Text(frame, wrap=tk.WORD, font=('Arial', 11))
-        text_widget.pack(fill=tk.BOTH, expand=True, pady=(10, 0))
+        ttk.Label(frame, text="Answer Text:", font=('Arial', 10, 'bold')).pack(anchor=tk.W)
+        text_widget = tk.Text(frame, wrap=tk.WORD, font=('Arial', 11), height=15)
+        text_widget.pack(fill=tk.BOTH, expand=True, pady=(5, 10))
         text_widget.insert(1.0, candidate.text)
         text_widget.config(state=tk.DISABLED)
         
-        ttk.Button(frame, text="Close", command=detail_window.destroy).pack(pady=(10, 0))
+        ttk.Button(frame, text="Close", command=detail_window.destroy).pack(pady=(5, 0))
     
     def select_all(self):
         """Select all candidates (across all pages)"""

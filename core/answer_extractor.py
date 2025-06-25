@@ -8,6 +8,7 @@ import re
 from typing import List, Dict, Any, Callable, Optional, Generator
 from dataclasses import dataclass
 from core.document_parser import DocumentParser
+from core.llm_client import LLMClient, APIConfig
 
 @dataclass
 class AnswerCandidate:
@@ -55,6 +56,10 @@ class AnswerExtractor:
         
         if methods is None:
             methods = ['sentences', 'paragraphs', 'lists', 'definitions', 'facts']
+        
+        # Handle AI extraction separately
+        if 'ai' in methods:
+            return self.extract_answers_ai(document_data, progress_callback, max_candidates)
         
         all_candidates = []
         
@@ -727,3 +732,224 @@ class AnswerExtractor:
             self.max_answer_length = max_length
         if min_confidence is not None:
             self.min_confidence = min_confidence
+    
+    def extract_answers_ai(self,
+                          document_data: Dict[str, Any],
+                          progress_callback: Optional[Callable[[ExtractionProgress], None]] = None,
+                          max_candidates: int = 5000) -> List[AnswerCandidate]:
+        """Extract Q&A pairs using AI and return as answer candidates"""
+        
+        # Load API configuration
+        try:
+            import json
+            import os
+            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'api_config.json')
+            with open(config_path, 'r') as f:
+                api_config_data = json.load(f)
+            
+            api_config = APIConfig(
+                provider=api_config_data['provider'],
+                api_key=api_config_data['api_key'],
+                base_url=LLMClient.get_base_url(api_config_data['provider']),
+                model=api_config_data['model']
+            )
+            
+            llm_client = LLMClient(api_config)
+            
+        except Exception as e:
+            if progress_callback:
+                progress = ExtractionProgress(
+                    current_chunk=0,
+                    total_chunks=0,
+                    candidates_found=0,
+                    current_method='ai',
+                    is_complete=True,
+                    error_message=f"Failed to load API configuration: {str(e)}"
+                )
+                progress_callback(progress)
+            return []
+        
+        all_candidates = []
+        
+        # Check if document uses lazy loading
+        if document_data.get('lazy_content', False):
+            all_candidates = self._extract_ai_from_lazy_document(
+                document_data, llm_client, progress_callback, max_candidates
+            )
+        else:
+            # Process entire document at once for small documents
+            content = document_data.get('content', '')
+            if content:
+                try:
+                    if progress_callback:
+                        progress = ExtractionProgress(
+                            current_chunk=1,
+                            total_chunks=1,
+                            candidates_found=0,
+                            current_method='ai'
+                        )
+                        progress_callback(progress)
+                    
+                    qa_pairs = llm_client.extract_qa_pairs_from_text(content)
+                    all_candidates = self._convert_qa_pairs_to_candidates(qa_pairs, content)
+                    
+                    if progress_callback:
+                        progress = ExtractionProgress(
+                            current_chunk=1,
+                            total_chunks=1,
+                            candidates_found=len(all_candidates),
+                            current_method='ai',
+                            is_complete=True
+                        )
+                        progress_callback(progress)
+                        
+                except Exception as e:
+                    if progress_callback:
+                        progress = ExtractionProgress(
+                            current_chunk=1,
+                            total_chunks=1,
+                            candidates_found=0,
+                            current_method='ai',
+                            is_complete=True,
+                            error_message=str(e)
+                        )
+                        progress_callback(progress)
+        
+        return all_candidates[:max_candidates]
+    
+    def _extract_ai_from_lazy_document(self,
+                                     document_data: Dict[str, Any],
+                                     llm_client: LLMClient,
+                                     progress_callback: Optional[Callable[[ExtractionProgress], None]],
+                                     max_candidates: int) -> List[AnswerCandidate]:
+        """Extract Q&A pairs from lazy-loaded document using AI"""
+        
+        doc_index = document_data['index']
+        all_candidates = []
+        total_chunks = len(doc_index.chunks)
+        
+        for chunk_idx, chunk in enumerate(doc_index.chunks):
+            if self.stop_extraction:
+                break
+                
+            if len(all_candidates) >= max_candidates:
+                break
+            
+            # Load chunk content
+            chunk_content = self.doc_parser.load_chunk(document_data, chunk.chunk_id)
+            
+            if not chunk_content.strip():
+                continue
+            
+            try:
+                if progress_callback:
+                    progress = ExtractionProgress(
+                        current_chunk=chunk_idx + 1,
+                        total_chunks=total_chunks,
+                        candidates_found=len(all_candidates),
+                        current_method='ai'
+                    )
+                    progress_callback(progress)
+                
+                # Extract Q&A pairs from this chunk
+                qa_pairs = llm_client.extract_qa_pairs_from_text(chunk_content, max_pairs=10)
+                
+                # Convert Q&A pairs to candidates
+                chunk_candidates = self._convert_qa_pairs_to_candidates(qa_pairs, chunk_content, chunk.char_start)
+                all_candidates.extend(chunk_candidates)
+                
+            except Exception as e:
+                print(f"Error processing chunk {chunk_idx}: {e}")
+                # If it's an API error, add more context
+                if "404" in str(e) or "API request failed" in str(e):
+                    print(f"API configuration issue detected. Check your API settings.")
+                    # For now, continue with next chunk, but could also abort here
+                continue
+        
+        if progress_callback:
+            progress = ExtractionProgress(
+                current_chunk=total_chunks,
+                total_chunks=total_chunks,
+                candidates_found=len(all_candidates),
+                current_method='ai',
+                is_complete=True
+            )
+            progress_callback(progress)
+        
+        return all_candidates
+    
+    def _convert_qa_pairs_to_candidates(self, 
+                                      qa_pairs: List[Dict[str, str]], 
+                                      source_text: str,
+                                      char_offset: int = 0) -> List[AnswerCandidate]:
+        """Convert Q&A pairs to AnswerCandidate objects"""
+        candidates = []
+        
+        for qa_pair in qa_pairs:
+            answer_text = qa_pair.get('answer', '').strip()
+            question_text = qa_pair.get('question', '').strip()
+            
+            if not answer_text or not question_text:
+                continue
+            
+            # Find the answer position in source text
+            start_pos = source_text.find(answer_text)
+            if start_pos == -1:
+                # Try fuzzy matching for slight variations
+                start_pos = self._fuzzy_find_answer(answer_text, source_text)
+            
+            if start_pos != -1:
+                end_pos = start_pos + len(answer_text)
+                
+                candidate = AnswerCandidate(
+                    text=answer_text,
+                    start_pos=start_pos + char_offset,
+                    end_pos=end_pos + char_offset,
+                    confidence=0.9,  # High confidence for AI-extracted answers
+                    extraction_method='ai',
+                    context=question_text  # Store the question in context
+                )
+                candidates.append(candidate)
+        
+        return candidates
+    
+    def _fuzzy_find_answer(self, answer_text: str, source_text: str) -> int:
+        """Attempt fuzzy matching to find answer in source text"""
+        # Try to find the answer with some tolerance for punctuation/whitespace differences
+        import re
+        
+        # Normalize whitespace and punctuation
+        normalized_answer = re.sub(r'\s+', ' ', answer_text.strip())
+        normalized_source = re.sub(r'\s+', ' ', source_text)
+        
+        # Try exact match first
+        pos = normalized_source.find(normalized_answer)
+        if pos != -1:
+            return pos
+        
+        # Try removing some punctuation
+        clean_answer = re.sub(r'[^\w\s]', '', normalized_answer)
+        clean_source = re.sub(r'[^\w\s]', '', normalized_source)
+        
+        pos = clean_source.find(clean_answer)
+        if pos != -1:
+            # Map back to original position (approximately)
+            return source_text.find(answer_text[:20])  # Use first 20 chars as anchor
+        
+        return -1
+    
+    def get_ai_qa_pairs(self, document_data: Dict[str, Any]) -> List[Dict[str, str]]:
+        """Extract Q&A pairs using AI and return them directly (for UI integration)"""
+        
+        # This method is used by the UI to get Q&A pairs ready for the question generator
+        candidates = self.extract_answers_ai(document_data)
+        
+        qa_pairs = []
+        for candidate in candidates:
+            if candidate.context:  # Context contains the question
+                qa_pairs.append({
+                    'question': candidate.context,
+                    'answer': candidate.text
+                })
+        
+        return qa_pairs

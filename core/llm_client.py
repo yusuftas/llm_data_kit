@@ -240,7 +240,7 @@ Please provide only the question, without any additional text or explanation."""
     
     def extract_qa_pairs_from_text(self, 
                                   text_chunk: str, 
-                                  max_pairs: int = 10,
+                                  max_pairs: int = 25,
                                   retry_attempts: int = 3) -> List[Dict[str, str]]:
         """Extract Q&A pairs from a text chunk using AI"""
         

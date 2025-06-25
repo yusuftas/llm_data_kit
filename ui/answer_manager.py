@@ -52,6 +52,14 @@ class AnswerManager:
         )
         self.auto_extract_btn.pack(side=tk.LEFT, padx=(0, 5))
         
+        self.ai_extract_btn = ttk.Button(
+            self.button_frame,
+            text="AI Extract",
+            command=self.show_ai_extract_dialog,
+            state=tk.DISABLED
+        )
+        self.ai_extract_btn.pack(side=tk.LEFT, padx=(0, 5))
+        
         self.edit_btn = ttk.Button(
             self.button_frame,
             text="Edit",
@@ -197,6 +205,7 @@ class AnswerManager:
         """Set the current document for auto-extraction"""
         self.current_document = document_data
         self.auto_extract_btn.config(state=tk.NORMAL if document_data else tk.DISABLED)
+        self.ai_extract_btn.config(state=tk.NORMAL if document_data else tk.DISABLED)
     
     def set_qa_addition_callback(self, callback: Callable[[List[Dict[str, str]]], None]):
         """Set callback for adding Q&A pairs from AI extraction"""
@@ -224,6 +233,29 @@ class AnswerManager:
                     f"Added {len(dialog.result)} answers and {len(dialog.ai_qa_pairs)} Q&A pairs from AI extraction")
             else:
                 messagebox.showinfo("Success", f"Added {len(dialog.result)} answers from auto-extraction")
+    
+    def show_ai_extract_dialog(self):
+        """Show auto-extraction dialog with AI mode pre-selected"""
+        if not self.current_document:
+            messagebox.showwarning("Warning", "No document loaded for extraction")
+            return
+        
+        # Use optimized dialog with AI mode pre-selected
+        from ui.auto_extraction_dialog import AutoExtractionDialog
+        dialog = AutoExtractionDialog(self.parent, self.current_document, ai_mode=True)
+        
+        if dialog.result:
+            # Add selected candidates as answers
+            for candidate in dialog.result:
+                self.add_answer(candidate.text)
+            
+            # Handle AI extraction - add Q&A pairs to question generator
+            if hasattr(dialog, 'ai_qa_pairs') and dialog.ai_qa_pairs and self.qa_addition_callback:
+                self.qa_addition_callback(dialog.ai_qa_pairs)
+                messagebox.showinfo("Success", 
+                    f"Added {len(dialog.result)} answers and {len(dialog.ai_qa_pairs)} Q&A pairs from AI extraction")
+            else:
+                messagebox.showinfo("Success", f"Added {len(dialog.result)} answers from AI extraction")
     
     def refresh_list(self):
         """Refresh the listbox display"""

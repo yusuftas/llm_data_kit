@@ -14,9 +14,10 @@ from core.answer_extractor import AnswerExtractor, AnswerCandidate, ExtractionPr
 class AutoExtractionDialog:
     """Optimized auto-extraction dialog for large documents"""
     
-    def __init__(self, parent: tk.Widget, document_data: Dict[str, Any]):
+    def __init__(self, parent: tk.Widget, document_data: Dict[str, Any], ai_mode: bool = False):
         self.parent = parent
         self.document_data = document_data
+        self.ai_mode = ai_mode  # Pre-select AI mode if True
         self.result = None
         self.candidates = []
         self.displayed_candidates = []  # Subset currently displayed
@@ -40,7 +41,10 @@ class AutoExtractionDialog:
     def create_dialog(self):
         """Create the optimized auto-extraction dialog"""
         self.dialog = tk.Toplevel(self.parent)
-        self.dialog.title("Auto Extract Answers (Optimized)")
+        if self.ai_mode:
+            self.dialog.title("AI Extract Q&A Pairs")
+        else:
+            self.dialog.title("Auto Extract Answers (Optimized)")
         self.dialog.geometry("900x700")
         self.dialog.transient(self.parent)
         self.dialog.grab_set()
@@ -56,7 +60,8 @@ class AutoExtractionDialog:
         main_frame.pack(fill=tk.BOTH, expand=True)
         
         # Title and document info
-        title_label = ttk.Label(main_frame, text="Auto Extract Answers", font=('Arial', 12, 'bold'))
+        title_text = "AI Extract Q&A Pairs" if self.ai_mode else "Auto Extract Answers"
+        title_label = ttk.Label(main_frame, text=title_text, font=('Arial', 12, 'bold'))
         title_label.pack(anchor=tk.W, pady=(0, 5))
         
         # Document info
@@ -117,13 +122,13 @@ class AutoExtractionDialog:
         methods_inner_frame.pack(fill=tk.X, pady=(5, 0))
         
         self.method_vars = {
-            'sentences': tk.BooleanVar(value=True),
-            'paragraphs': tk.BooleanVar(value=True),
-            'lists': tk.BooleanVar(value=True),
-            'definitions': tk.BooleanVar(value=True),
-            'facts': tk.BooleanVar(value=True),
+            'sentences': tk.BooleanVar(value=not self.ai_mode),
+            'paragraphs': tk.BooleanVar(value=not self.ai_mode),
+            'lists': tk.BooleanVar(value=not self.ai_mode),
+            'definitions': tk.BooleanVar(value=not self.ai_mode),
+            'facts': tk.BooleanVar(value=not self.ai_mode),
             'procedures': tk.BooleanVar(value=False),
-            'ai': tk.BooleanVar(value=False)
+            'ai': tk.BooleanVar(value=self.ai_mode)
         }
         
         method_labels = {
@@ -201,6 +206,10 @@ class AutoExtractionDialog:
         # Extract button
         extract_btn = ttk.Button(options_frame, text="Start Extraction", command=self.start_extraction)
         extract_btn.pack(pady=(5, 0))
+        
+        # Show AI warning if AI mode is pre-selected
+        if self.ai_mode:
+            self.ai_warning_frame.pack(fill=tk.X, pady=(5, 0))
     
     def create_progress_section(self, parent):
         """Create progress tracking section"""

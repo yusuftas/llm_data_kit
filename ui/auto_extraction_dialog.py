@@ -199,6 +199,9 @@ class AutoExtractionDialog:
         self.max_candidates_var = tk.StringVar(value="5000")
         ttk.Entry(filter_row2, textvariable=self.max_candidates_var, width=8).pack(side=tk.LEFT, padx=(5, 0))
         
+        # Chunk range selection (for AI extraction only)
+        self.create_chunk_range_section(options_frame)
+        
         # AI method warning
         self.ai_warning_frame = ttk.Frame(options_frame)
         self.ai_warning_label = ttk.Label(
@@ -213,9 +216,72 @@ class AutoExtractionDialog:
         extract_btn = ttk.Button(options_frame, text="Start Extraction", command=self.start_extraction)
         extract_btn.pack(pady=(3, 0))
         
-        # Show AI warning if AI mode is pre-selected
+        # Show AI warning and chunk range if AI mode is pre-selected
         if self.ai_mode:
             self.ai_warning_frame.pack(fill=tk.X, pady=(5, 0))
+            if hasattr(self, 'chunk_range_frame'):
+                self.chunk_range_frame.pack(fill=tk.X, pady=(5, 0))
+    
+    def create_chunk_range_section(self, parent):
+        """Create chunk range selection section (for AI extraction)"""
+        self.chunk_range_frame = ttk.Frame(parent)
+        
+        ttk.Label(self.chunk_range_frame, text="AI Chunk Range:").pack(anchor=tk.W)
+        
+        range_controls = ttk.Frame(self.chunk_range_frame)
+        range_controls.pack(fill=tk.X, pady=(5, 0))
+        
+        # Get total chunks for validation
+        metadata = self.document_data.get('metadata', {})
+        total_chunks = metadata.get('chunk_count', 1)
+        
+        # Chunk range controls
+        ttk.Label(range_controls, text="From chunk:").pack(side=tk.LEFT)
+        self.start_chunk_var = tk.StringVar(value="1")
+        start_entry = ttk.Entry(range_controls, textvariable=self.start_chunk_var, width=6)
+        start_entry.pack(side=tk.LEFT, padx=(5, 15))
+        
+        ttk.Label(range_controls, text="To chunk:").pack(side=tk.LEFT)
+        self.end_chunk_var = tk.StringVar(value=str(total_chunks))
+        end_entry = ttk.Entry(range_controls, textvariable=self.end_chunk_var, width=6)
+        end_entry.pack(side=tk.LEFT, padx=(5, 15))
+        
+        # Info label
+        info_text = f"(Total: {total_chunks} chunks)"
+        if metadata.get('is_lazy', False):
+            chunk_size = metadata.get('chunk_size', 'unknown')
+            info_text += f" • ~{chunk_size} chars/chunk"
+        
+        ttk.Label(range_controls, text=info_text, font=('Arial', 8), foreground='gray').pack(side=tk.LEFT, padx=(10, 0))
+        
+        # All chunks checkbox
+        self.use_all_chunks_var = tk.BooleanVar(value=True)
+        all_chunks_cb = ttk.Checkbutton(
+            self.chunk_range_frame,
+            text="Process all chunks",
+            variable=self.use_all_chunks_var,
+            command=self.on_all_chunks_changed
+        )
+        all_chunks_cb.pack(anchor=tk.W, pady=(5, 0))
+        
+        # Initially disable range controls
+        self.chunk_range_controls = [start_entry, end_entry]
+        self.update_chunk_range_controls()
+        
+        # Initially hide chunk range section
+        self.chunk_range_frame.pack_forget()
+    
+    def on_all_chunks_changed(self):
+        """Handle all chunks checkbox change"""
+        self.update_chunk_range_controls()
+    
+    def update_chunk_range_controls(self):
+        """Update chunk range controls based on all chunks checkbox"""
+        use_all = self.use_all_chunks_var.get()
+        state = tk.DISABLED if use_all else tk.NORMAL
+        
+        for control in self.chunk_range_controls:
+            control.config(state=state)
     
     def create_progress_section(self, parent):
         """Create progress tracking section"""
@@ -254,12 +320,20 @@ class AutoExtractionDialog:
             # Show warning and handle mutual exclusivity
             self.ai_warning_frame.pack(fill=tk.X, pady=(5, 0))
             
+            # Show chunk range selection for AI extraction
+            if hasattr(self, 'chunk_range_frame'):
+                self.chunk_range_frame.pack(fill=tk.X, pady=(5, 0))
+            
             # When AI is selected, disable other methods
             for method in ['sentences', 'paragraphs', 'lists', 'definitions', 'facts', 'procedures']:
                 self.method_vars[method].set(False)
         else:
             # Hide warning
             self.ai_warning_frame.pack_forget()
+            
+            # Hide chunk range selection
+            if hasattr(self, 'chunk_range_frame'):
+                self.chunk_range_frame.pack_forget()
             
             # Re-enable some default methods if none are selected
             if not any(self.method_vars[method].get() for method in self.method_vars.keys()):
@@ -366,6 +440,32 @@ class AutoExtractionDialog:
                 messagebox.showwarning("Warning", "Please select at least one extraction method")
                 return
             
+            # Get chunk range for AI extraction
+            chunk_range = None
+            if 'ai' in selected_methods and hasattr(self, 'use_all_chunks_var'):
+                if not self.use_all_chunks_var.get():
+                    try:
+                        start_chunk = int(self.start_chunk_var.get()) - 1  # Convert to 0-based
+                        end_chunk = int(self.end_chunk_var.get())  # This will be exclusive
+                        
+                        # Validate chunk range
+                        metadata = self.document_data.get('metadata', {})
+                        total_chunks = metadata.get('chunk_count', 1)
+                        
+                        if start_chunk < 0:
+                            start_chunk = 0
+                        if end_chunk > total_chunks:
+                            end_chunk = total_chunks
+                        if start_chunk >= end_chunk:
+                            messagebox.showerror("Error", "Invalid chunk range: start chunk must be less than end chunk")
+                            return
+                        
+                        chunk_range = {'start': start_chunk, 'end': end_chunk}
+                        
+                    except ValueError:
+                        messagebox.showerror("Error", "Invalid chunk range: please enter valid numbers")
+                        return
+            
             # Show progress section (it's now already in the bottom frame)
             self.progress_frame.pack(fill=tk.X, pady=(0, 5))
             
@@ -382,7 +482,8 @@ class AutoExtractionDialog:
                 progress_callback=self.on_extraction_progress,
                 completion_callback=self.on_extraction_complete,
                 error_callback=self.on_extraction_error,
-                max_candidates=max_candidates
+                max_candidates=max_candidates,
+                chunk_range=chunk_range
             )
             
         except ValueError as e:

@@ -51,7 +51,8 @@ class AnswerExtractor:
                                 document_data: Dict[str, Any], 
                                 methods: List[str] = None,
                                 progress_callback: Optional[Callable[[ExtractionProgress], None]] = None,
-                                max_candidates: int = 5000) -> List[AnswerCandidate]:
+                                max_candidates: int = 5000,
+                                chunk_range: Optional[Dict[str, int]] = None) -> List[AnswerCandidate]:
         """Extract answers with optimization for large documents"""
         
         if methods is None:
@@ -59,7 +60,7 @@ class AnswerExtractor:
         
         # Handle AI extraction separately
         if 'ai' in methods:
-            return self.extract_answers_ai(document_data, progress_callback, max_candidates)
+            return self.extract_answers_ai(document_data, progress_callback, max_candidates, chunk_range)
         
         all_candidates = []
         
@@ -170,7 +171,8 @@ class AnswerExtractor:
                                 progress_callback: Optional[Callable[[ExtractionProgress], None]] = None,
                                 completion_callback: Optional[Callable[[List[AnswerCandidate]], None]] = None,
                                 error_callback: Optional[Callable[[str], None]] = None,
-                                max_candidates: int = 5000):
+                                max_candidates: int = 5000,
+                                chunk_range: Optional[Dict[str, int]] = None):
         """Extract answers in a separate thread"""
         
         def extraction_worker():
@@ -179,7 +181,7 @@ class AnswerExtractor:
                 self.stop_extraction = False
                 
                 candidates = self.extract_answers_optimized(
-                    document_data, methods, progress_callback, max_candidates
+                    document_data, methods, progress_callback, max_candidates, chunk_range
                 )
                 
                 if completion_callback:
@@ -736,7 +738,8 @@ class AnswerExtractor:
     def extract_answers_ai(self,
                           document_data: Dict[str, Any],
                           progress_callback: Optional[Callable[[ExtractionProgress], None]] = None,
-                          max_candidates: int = 5000) -> List[AnswerCandidate]:
+                          max_candidates: int = 5000,
+                          chunk_range: Optional[Dict[str, int]] = None) -> List[AnswerCandidate]:
         """Extract Q&A pairs using AI and return as answer candidates"""
         
         # Load API configuration
@@ -774,7 +777,7 @@ class AnswerExtractor:
         # Check if document uses lazy loading
         if document_data.get('lazy_content', False):
             all_candidates = self._extract_ai_from_lazy_document(
-                document_data, llm_client, progress_callback, max_candidates
+                document_data, llm_client, progress_callback, max_candidates, chunk_range
             )
         else:
             # Process entire document at once for small documents
@@ -821,14 +824,29 @@ class AnswerExtractor:
                                      document_data: Dict[str, Any],
                                      llm_client: LLMClient,
                                      progress_callback: Optional[Callable[[ExtractionProgress], None]],
-                                     max_candidates: int) -> List[AnswerCandidate]:
+                                     max_candidates: int,
+                                     chunk_range: Optional[Dict[str, int]] = None) -> List[AnswerCandidate]:
         """Extract Q&A pairs from lazy-loaded document using AI"""
         
         doc_index = document_data['index']
         all_candidates = []
         total_chunks = len(doc_index.chunks)
         
-        for chunk_idx, chunk in enumerate(doc_index.chunks):
+        # Determine chunk range to process
+        start_chunk = 0
+        end_chunk = total_chunks
+        
+        if chunk_range:
+            start_chunk = chunk_range.get('start', 0)
+            end_chunk = chunk_range.get('end', total_chunks)
+            # Ensure valid range
+            start_chunk = max(0, min(start_chunk, total_chunks))
+            end_chunk = max(start_chunk, min(end_chunk, total_chunks))
+        
+        # Process only the specified chunk range
+        chunks_to_process = doc_index.chunks[start_chunk:end_chunk]
+        
+        for chunk_idx, chunk in enumerate(chunks_to_process, start=start_chunk):
             if self.stop_extraction:
                 break
                 
@@ -843,9 +861,12 @@ class AnswerExtractor:
             
             try:
                 if progress_callback:
+                    # Report progress relative to the chunk range being processed
+                    current_progress = chunk_idx - start_chunk + 1
+                    total_progress = end_chunk - start_chunk
                     progress = ExtractionProgress(
-                        current_chunk=chunk_idx + 1,
-                        total_chunks=total_chunks,
+                        current_chunk=current_progress,
+                        total_chunks=total_progress,
                         candidates_found=len(all_candidates),
                         current_method='ai'
                     )
@@ -867,9 +888,11 @@ class AnswerExtractor:
                 continue
         
         if progress_callback:
+            # Report completion relative to the chunk range processed
+            total_progress = end_chunk - start_chunk
             progress = ExtractionProgress(
-                current_chunk=total_chunks,
-                total_chunks=total_chunks,
+                current_chunk=total_progress,
+                total_chunks=total_progress,
                 candidates_found=len(all_candidates),
                 current_method='ai',
                 is_complete=True

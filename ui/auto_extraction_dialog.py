@@ -203,7 +203,8 @@ class AutoExtractionDialog:
                 checkbox = ttk.Checkbutton(
                     frame,
                     text=method_labels[method],
-                    variable=self.method_vars[method]
+                    variable=self.method_vars[method],
+                    command=self.on_other_method_changed
                 )
                 checkbox.pack(anchor=tk.W, pady=2)
         
@@ -314,6 +315,16 @@ class AutoExtractionDialog:
             if not any(self.method_vars[method].get() for method in self.method_vars.keys()):
                 self.method_vars['sentences'].set(True)
                 self.method_vars['paragraphs'].set(True)
+    
+    def on_other_method_changed(self):
+        """Handle non-AI method checkbox change"""
+        # If any non-AI method is selected, uncheck AI
+        other_methods = ['sentences', 'paragraphs', 'lists', 'definitions', 'facts', 'procedures']
+        if any(self.method_vars[method].get() for method in other_methods):
+            if self.method_vars['ai'].get():
+                self.method_vars['ai'].set(False)
+                # Trigger AI method change to hide controls
+                self.on_ai_method_changed()
     
     def create_results_section(self, parent):
         """Create results section with virtual scrolling"""

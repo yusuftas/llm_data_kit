@@ -46,6 +46,7 @@ class AutoExtractionDialog:
         else:
             self.dialog.title("Auto Extract Answers (Optimized)")
         self.dialog.geometry("900x700")
+        self.dialog.minsize(900, 700)  # Set minimum size to ensure critical elements are visible
         self.dialog.transient(self.parent)
         self.dialog.grab_set()
         
@@ -64,20 +65,25 @@ class AutoExtractionDialog:
         title_label = ttk.Label(main_frame, text=title_text, font=('Arial', 12, 'bold'))
         title_label.pack(anchor=tk.W, pady=(0, 5))
         
-        # Document info
-        self.create_document_info(main_frame)
+        # Top section frame for fixed-height content
+        top_frame = ttk.Frame(main_frame)
+        top_frame.pack(fill=tk.X, pady=(0, 5))
         
         # Extraction options
-        self.create_extraction_options(main_frame)
+        self.create_extraction_options(top_frame)
         
-        # Results section with virtual scrolling
+        # Results section with virtual scrolling (expandable)
         self.create_results_section(main_frame)
         
+        # Bottom section frame for fixed-height content (always visible)
+        bottom_frame = ttk.Frame(main_frame)
+        bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(5, 0))
+        
         # Progress section (compact, shown only during extraction)
-        self.create_progress_section(main_frame)
+        self.create_progress_section(bottom_frame)
         
         # Button frame - always at bottom
-        button_frame = ttk.Frame(main_frame)
+        button_frame = ttk.Frame(bottom_frame)
         button_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(10, 0))
         
         ttk.Button(button_frame, text="Cancel", command=self.cancel).pack(side=tk.RIGHT, padx=(5, 0))
@@ -114,7 +120,7 @@ class AutoExtractionDialog:
         
         # Method selection
         methods_frame = ttk.Frame(options_frame)
-        methods_frame.pack(fill=tk.X, pady=(0, 10))
+        methods_frame.pack(fill=tk.X, pady=(0, 5))
         
         ttk.Label(methods_frame, text="Extraction Methods:").pack(anchor=tk.W)
         
@@ -163,7 +169,7 @@ class AutoExtractionDialog:
         
         # Filter options
         filter_frame = ttk.Frame(options_frame)
-        filter_frame.pack(fill=tk.X, pady=(0, 10))
+        filter_frame.pack(fill=tk.X, pady=(0, 5))
         
         ttk.Label(filter_frame, text="Filters:").pack(anchor=tk.W)
         
@@ -205,7 +211,7 @@ class AutoExtractionDialog:
         
         # Extract button
         extract_btn = ttk.Button(options_frame, text="Start Extraction", command=self.start_extraction)
-        extract_btn.pack(pady=(5, 0))
+        extract_btn.pack(pady=(3, 0))
         
         # Show AI warning if AI mode is pre-selected
         if self.ai_mode:
@@ -312,7 +318,7 @@ class AutoExtractionDialog:
         
         # Treeview for candidates
         columns = ('Method', 'Confidence', 'Length', 'Preview')
-        self.candidates_tree = ttk.Treeview(list_frame, columns=columns, show='tree headings', height=12)
+        self.candidates_tree = ttk.Treeview(list_frame, columns=columns, show='tree headings', height=8)
         
         self.candidates_tree.heading('#0', text='Select')
         self.candidates_tree.heading('Method', text='Method')
@@ -360,17 +366,8 @@ class AutoExtractionDialog:
                 messagebox.showwarning("Warning", "Please select at least one extraction method")
                 return
             
-            # Show progress section before button frame
-            button_frame = None
-            for child in self.progress_frame.master.winfo_children():
-                if isinstance(child, ttk.Frame) and len(child.winfo_children()) == 2:  # Button frame
-                    button_frame = child
-                    break
-            
-            if button_frame:
-                self.progress_frame.pack(fill=tk.X, pady=(5, 5), before=button_frame)
-            else:
-                self.progress_frame.pack(fill=tk.X, pady=(5, 5))
+            # Show progress section (it's now already in the bottom frame)
+            self.progress_frame.pack(fill=tk.X, pady=(0, 5))
             
             # Start extraction
             self.is_extracting = True

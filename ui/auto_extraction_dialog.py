@@ -629,6 +629,19 @@ class AutoExtractionDialog:
         
         selected_candidates = [self.candidates[i] for i in sorted(self.selected_indices) if i < len(self.candidates)]
         
+        # Filter AI Q&A pairs to only include selected candidates
+        if self.ai_qa_pairs:
+            selected_ai_qa_pairs = []
+            for candidate in selected_candidates:
+                if candidate.extraction_method == 'ai' and candidate.context:
+                    # Find the corresponding Q&A pair
+                    qa_pair = {
+                        'question': candidate.context,
+                        'answer': candidate.text
+                    }
+                    selected_ai_qa_pairs.append(qa_pair)
+            self.ai_qa_pairs = selected_ai_qa_pairs
+        
         self.result = selected_candidates
         self.dialog.destroy()
     

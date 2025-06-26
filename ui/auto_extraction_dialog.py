@@ -426,7 +426,13 @@ class AutoExtractionDialog:
         
         self.update_results_display()
         
-        self.progress_label.config(text=f"Complete - {len(candidates)} candidates found")
+        # Check if extraction was stopped early
+        was_stopped = self.extractor.stop_extraction
+        if was_stopped:
+            self.progress_label.config(text=f"Stopped - {len(candidates)} candidates found (partial results)")
+        else:
+            self.progress_label.config(text=f"Complete - {len(candidates)} candidates found")
+        
         self.is_extracting = False
         self.stop_btn.config(state=tk.DISABLED)
     
@@ -440,9 +446,8 @@ class AutoExtractionDialog:
     def stop_extraction(self):
         """Stop the current extraction"""
         self.extractor.stop_current_extraction()
-        self.is_extracting = False
-        self.stop_btn.config(state=tk.DISABLED)
-        self.progress_label.config(text="Extraction stopped")
+        # Note: is_extracting and stop_btn will be updated by completion callback
+        # which now receives partial results
     
     def update_results_display(self):
         """Update the results display with virtual scrolling"""

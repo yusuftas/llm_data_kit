@@ -182,7 +182,7 @@ class AnswerExtractor:
                     document_data, methods, progress_callback, max_candidates
                 )
                 
-                if completion_callback and not self.stop_extraction:
+                if completion_callback:
                     completion_callback(candidates)
                     
             except Exception as e:

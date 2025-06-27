@@ -45,16 +45,27 @@ class AutoExtractionDialog:
             self.dialog.title("AI Extract Q&A Pairs")
         else:
             self.dialog.title("Auto Extract Answers (Optimized)")
-        self.dialog.geometry("900x700")
-        self.dialog.minsize(900, 700)  # Set minimum size to ensure critical elements are visible
+
+        # Get dialog dimensions
+        dialog_width = 900
+        dialog_height = 700
+
+        self.dialog.minsize(dialog_width, dialog_height)  # Set minimum size to ensure critical elements are visible
         self.dialog.transient(self.parent)
         self.dialog.grab_set()
         
-        # Center the dialog
-        self.dialog.geometry("+%d+%d" % (
-            self.parent.winfo_rootx() + 50,
-            self.parent.winfo_rooty() + 50
-        ))
+        # Center the dialog on screen
+        self.dialog.update_idletasks()  # Ensure geometry is calculated
+        
+        # Get screen dimensions
+        screen_width = self.dialog.winfo_screenwidth()
+        screen_height = self.dialog.winfo_screenheight()
+        
+        # Calculate center position
+        x = (screen_width - dialog_width) // 2
+        y = (screen_height - dialog_height) // 2
+        
+        self.dialog.geometry(f"{dialog_width}x{dialog_height}+{x}+{y}")
         
         # Main frame
         main_frame = ttk.Frame(self.dialog, padding=10)

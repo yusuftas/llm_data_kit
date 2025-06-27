@@ -24,6 +24,8 @@ class MainWindow:
         self.root = root
         self.root.title("LLama 3.2 Fine-Tuning Data Preparation Tool")
         self.root.geometry("1200x800")
+        self.root.minsize(1200, 700)  # Reduced minimum height but ensure key elements visible
+        self.root.state('zoomed')  # Start maximized
         
         # Initialize components
         self.document_parser = DocumentParser()
@@ -37,7 +39,13 @@ class MainWindow:
     
     def setup_ui(self):
         """Set up the main user interface"""
-        # Create main paned window
+        # Status bar first - packed at bottom to reserve space
+        self.status_var = tk.StringVar()
+        self.status_var.set("Ready")
+        self.status_bar = ttk.Label(self.root, textvariable=self.status_var, relief=tk.SUNKEN)
+        self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
+        
+        # Create main paned window - now takes remaining space
         self.main_paned = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
         self.main_paned.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
@@ -61,12 +69,6 @@ class MainWindow:
         
         # Set up callback for AI extraction Q&A pairs
         self.answer_manager.set_qa_addition_callback(self.question_generator.add_qa_pairs)
-        
-        # Status bar
-        self.status_var = tk.StringVar()
-        self.status_var.set("Ready")
-        self.status_bar = ttk.Label(self.root, textvariable=self.status_var, relief=tk.SUNKEN)
-        self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
     
     def setup_menu(self):
         """Set up the application menu"""

@@ -126,7 +126,11 @@ class QuestionGenerator:
         self.qa_frame = ttk.LabelFrame(self.frame, text="Generated Q&A Pairs", padding=5)
         self.qa_frame.pack(fill=tk.BOTH, expand=True)
         
-        # Q&A List with scrollbar
+        # Q&A controls first - pack at bottom to ensure they're always visible
+        self.qa_control_frame = ttk.Frame(self.qa_frame)
+        self.qa_control_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(5, 0))
+        
+        # Q&A List with scrollbar - takes remaining space
         self.qa_list_frame = ttk.Frame(self.qa_frame)
         self.qa_list_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
         
@@ -134,7 +138,7 @@ class QuestionGenerator:
             self.qa_list_frame,
             columns=('Question', 'Answer'),
             show='headings',
-            height=8
+            height=6  # Reduced from 8 to 6 to save space for bottom buttons
         )
         
         self.qa_tree.heading('Question', text='Question')
@@ -153,10 +157,7 @@ class QuestionGenerator:
         self.qa_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.qa_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
-        # Q&A controls
-        self.qa_control_frame = ttk.Frame(self.qa_frame)
-        self.qa_control_frame.pack(fill=tk.X)
-        
+        # Create buttons in the already-created control frame
         self.edit_qa_btn = ttk.Button(
             self.qa_control_frame,
             text="Edit Selected",

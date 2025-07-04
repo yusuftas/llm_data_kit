@@ -235,27 +235,44 @@ class AnswerManager:
                 messagebox.showinfo("Success", f"Added {len(dialog.result)} answers from auto-extraction")
     
     def show_ai_extract_dialog(self):
-        """Show auto-extraction dialog with AI mode pre-selected"""
+        """Show AI extraction dialog"""
         if not self.current_document:
             messagebox.showwarning("Warning", "No document loaded for extraction")
             return
         
-        # Use optimized dialog with AI mode pre-selected
-        from ui.auto_extraction_dialog import AutoExtractionDialog
-        dialog = AutoExtractionDialog(self.parent, self.current_document, ai_mode=True)
+        # Load API configuration
+        api_config = self.load_api_config()
+        if not api_config:
+            messagebox.showerror("Error", "API configuration not found. Please configure API settings first.")
+            return
+        
+        from ui.ai_extraction_dialog import AIExtractionDialog
+        dialog = AIExtractionDialog(self.parent, self.current_document, api_config)
         
         if dialog.result:
             # Add selected candidates as answers
             for candidate in dialog.result:
                 self.add_answer(candidate.text)
             
-            # Handle AI extraction - add Q&A pairs to question generator
+            # Add Q&A pairs to question generator
             if hasattr(dialog, 'ai_qa_pairs') and dialog.ai_qa_pairs and self.qa_addition_callback:
                 self.qa_addition_callback(dialog.ai_qa_pairs)
                 messagebox.showinfo("Success", 
                     f"Added {len(dialog.result)} answers and {len(dialog.ai_qa_pairs)} Q&A pairs from AI extraction")
             else:
-                messagebox.showinfo("Success", f"Added {len(dialog.result)} answers from AI extraction")
+                messagebox.showinfo("Success", f"Added {len(dialog.result)} answers")
+    
+    def load_api_config(self):
+        """Load API configuration from file"""
+        try:
+            import json
+            with open('api_config.json', 'r') as f:
+                return json.load(f)
+        except FileNotFoundError:
+            return None
+        except Exception as e:
+            print(f"Failed to load API config: {e}")
+            return None
     
     def refresh_list(self):
         """Refresh the listbox display"""

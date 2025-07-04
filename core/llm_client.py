@@ -241,15 +241,16 @@ Please provide only the question, without any additional text or explanation."""
     def extract_qa_pairs_from_text(self, 
                                   text_chunk: str, 
                                   max_pairs: int = 25,
-                                  retry_attempts: int = 3) -> List[Dict[str, str]]:
+                                  retry_attempts: int = 3,
+                                  custom_prompt: Optional[str] = None) -> List[Dict[str, str]]:
         """Extract Q&A pairs from a text chunk using AI"""
         
         for attempt in range(retry_attempts):
             try:
                 if self.config.provider == 'anthropic':
-                    return self._extract_qa_anthropic(text_chunk, max_pairs)
+                    return self._extract_qa_anthropic(text_chunk, max_pairs, custom_prompt)
                 else:
-                    return self._extract_qa_openai_compatible(text_chunk, max_pairs)
+                    return self._extract_qa_openai_compatible(text_chunk, max_pairs, custom_prompt)
                     
             except requests.exceptions.HTTPError as e:
                 if e.response.status_code == 429:
@@ -267,9 +268,9 @@ Please provide only the question, without any additional text or explanation."""
         
         return []
     
-    def _extract_qa_openai_compatible(self, text_chunk: str, max_pairs: int) -> List[Dict[str, str]]:
+    def _extract_qa_openai_compatible(self, text_chunk: str, max_pairs: int, custom_prompt: Optional[str] = None) -> List[Dict[str, str]]:
         """Extract Q&A pairs using OpenAI-compatible API"""
-        prompt = self._create_qa_extraction_prompt(text_chunk, max_pairs)
+        prompt = self._create_qa_extraction_prompt(text_chunk, max_pairs, custom_prompt)
         
         payload = {
             'model': self.config.model,
@@ -307,9 +308,9 @@ Please provide only the question, without any additional text or explanation."""
         else:
             raise Exception("No valid response from API")
     
-    def _extract_qa_anthropic(self, text_chunk: str, max_pairs: int) -> List[Dict[str, str]]:
+    def _extract_qa_anthropic(self, text_chunk: str, max_pairs: int, custom_prompt: Optional[str] = None) -> List[Dict[str, str]]:
         """Extract Q&A pairs using Anthropic API"""
-        prompt = self._create_qa_extraction_prompt(text_chunk, max_pairs)
+        prompt = self._create_qa_extraction_prompt(text_chunk, max_pairs, custom_prompt)
         
         payload = {
             'model': self.config.model,
@@ -337,8 +338,15 @@ Please provide only the question, without any additional text or explanation."""
         else:
             raise Exception("No valid response from API")
     
-    def _create_qa_extraction_prompt(self, text_chunk: str, max_pairs: int) -> str:
+    def _create_qa_extraction_prompt(self, text_chunk: str, max_pairs: int, custom_prompt: Optional[str] = None) -> str:
         """Create prompt for Q&A extraction"""
+        if custom_prompt:
+            # Use custom prompt but ensure text chunk and max_pairs are included
+            prompt = custom_prompt.replace("{text_chunk}", text_chunk[:4000])
+            prompt = prompt.replace("{max_pairs}", str(max_pairs))
+            return prompt
+        
+        # Default prompt
         return f"""Extract up to {max_pairs} high-quality question-answer pairs from the following text. 
 
 REQUIREMENTS:

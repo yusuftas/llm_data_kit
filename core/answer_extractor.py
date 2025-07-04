@@ -52,7 +52,10 @@ class AnswerExtractor:
                                 methods: List[str] = None,
                                 progress_callback: Optional[Callable[[ExtractionProgress], None]] = None,
                                 max_candidates: int = 5000,
-                                chunk_range: Optional[Dict[str, int]] = None) -> List[AnswerCandidate]:
+                                chunk_range: Optional[Dict[str, int]] = None,
+                                ai_config: Optional[APIConfig] = None,
+                                ai_max_pairs: int = 25,
+                                ai_custom_prompt: Optional[str] = None) -> List[AnswerCandidate]:
         """Extract answers with optimization for large documents"""
         
         if methods is None:
@@ -60,7 +63,10 @@ class AnswerExtractor:
         
         # Handle AI extraction separately
         if 'ai' in methods:
-            return self.extract_answers_ai(document_data, progress_callback, max_candidates, chunk_range)
+            if ai_config is None:
+                raise ValueError("AI extraction requires ai_config parameter")
+            return self.extract_answers_ai(document_data, progress_callback, max_candidates, chunk_range, 
+                                         ai_config, ai_max_pairs, ai_custom_prompt)
         
         all_candidates = []
         
@@ -172,7 +178,10 @@ class AnswerExtractor:
                                 completion_callback: Optional[Callable[[List[AnswerCandidate]], None]] = None,
                                 error_callback: Optional[Callable[[str], None]] = None,
                                 max_candidates: int = 5000,
-                                chunk_range: Optional[Dict[str, int]] = None):
+                                chunk_range: Optional[Dict[str, int]] = None,
+                                ai_config: Optional[APIConfig] = None,
+                                ai_max_pairs: int = 25,
+                                ai_custom_prompt: Optional[str] = None):
         """Extract answers in a separate thread"""
         
         def extraction_worker():
@@ -180,8 +189,13 @@ class AnswerExtractor:
                 self.is_extracting = True
                 self.stop_extraction = False
                 
+                # Ensure AI parameters have defaults when not provided
+                final_ai_max_pairs = ai_max_pairs if ai_config is not None else 25
+                final_ai_custom_prompt = ai_custom_prompt if ai_config is not None else None
+                
                 candidates = self.extract_answers_optimized(
-                    document_data, methods, progress_callback, max_candidates, chunk_range
+                    document_data, methods, progress_callback, max_candidates, chunk_range, 
+                    ai_config, final_ai_max_pairs, final_ai_custom_prompt
                 )
                 
                 if completion_callback:
@@ -739,25 +753,31 @@ class AnswerExtractor:
                           document_data: Dict[str, Any],
                           progress_callback: Optional[Callable[[ExtractionProgress], None]] = None,
                           max_candidates: int = 5000,
-                          chunk_range: Optional[Dict[str, int]] = None) -> List[AnswerCandidate]:
+                          chunk_range: Optional[Dict[str, int]] = None,
+                          ai_config: Optional[APIConfig] = None,
+                          ai_max_pairs: int = 25,
+                          ai_custom_prompt: Optional[str] = None) -> List[AnswerCandidate]:
         """Extract Q&A pairs using AI and return as answer candidates"""
         
-        # Load API configuration
+        # Use provided AI configuration or load from file
         try:
-            import json
-            import os
-            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'api_config.json')
-            with open(config_path, 'r') as f:
-                api_config_data = json.load(f)
-            
-            api_config = APIConfig(
-                provider=api_config_data['provider'],
-                api_key=api_config_data['api_key'],
-                base_url=LLMClient.get_base_url(api_config_data['provider']),
-                model=api_config_data['model']
-            )
-            
-            llm_client = LLMClient(api_config)
+            if ai_config:
+                llm_client = LLMClient(ai_config)
+            else:
+                import json
+                import os
+                config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'api_config.json')
+                with open(config_path, 'r') as f:
+                    api_config_data = json.load(f)
+                
+                config = APIConfig(
+                    provider=api_config_data['provider'],
+                    api_key=api_config_data['api_key'],
+                    base_url=LLMClient.get_base_url(api_config_data['provider']),
+                    model=api_config_data['model']
+                )
+                
+                llm_client = LLMClient(config)
             
         except Exception as e:
             if progress_callback:
@@ -777,7 +797,8 @@ class AnswerExtractor:
         # Check if document uses lazy loading
         if document_data.get('lazy_content', False):
             all_candidates = self._extract_ai_from_lazy_document(
-                document_data, llm_client, progress_callback, max_candidates, chunk_range
+                document_data, llm_client, progress_callback, max_candidates, chunk_range,
+                ai_max_pairs, ai_custom_prompt
             )
         else:
             # Process entire document at once for small documents
@@ -793,7 +814,7 @@ class AnswerExtractor:
                         )
                         progress_callback(progress)
                     
-                    qa_pairs = llm_client.extract_qa_pairs_from_text(content)
+                    qa_pairs = llm_client.extract_qa_pairs_from_text(content, max_pairs=ai_max_pairs, custom_prompt=ai_custom_prompt)
                     all_candidates = self._convert_qa_pairs_to_candidates(qa_pairs, content)
                     
                     if progress_callback:
@@ -825,7 +846,9 @@ class AnswerExtractor:
                                      llm_client: LLMClient,
                                      progress_callback: Optional[Callable[[ExtractionProgress], None]],
                                      max_candidates: int,
-                                     chunk_range: Optional[Dict[str, int]] = None) -> List[AnswerCandidate]:
+                                     chunk_range: Optional[Dict[str, int]] = None,
+                                     ai_max_pairs: int = 25,
+                                     ai_custom_prompt: Optional[str] = None) -> List[AnswerCandidate]:
         """Extract Q&A pairs from lazy-loaded document using AI"""
         
         doc_index = document_data['index']
@@ -873,7 +896,7 @@ class AnswerExtractor:
                     progress_callback(progress)
                 
                 # Extract Q&A pairs from this chunk
-                qa_pairs = llm_client.extract_qa_pairs_from_text(chunk_content, max_pairs=10)
+                qa_pairs = llm_client.extract_qa_pairs_from_text(chunk_content, max_pairs=ai_max_pairs, custom_prompt=ai_custom_prompt)
                 
                 # Convert Q&A pairs to candidates
                 chunk_candidates = self._convert_qa_pairs_to_candidates(qa_pairs, chunk_content, chunk.char_start)
@@ -965,7 +988,8 @@ class AnswerExtractor:
         """Extract Q&A pairs using AI and return them directly (for UI integration)"""
         
         # This method is used by the UI to get Q&A pairs ready for the question generator
-        candidates = self.extract_answers_ai(document_data)
+        candidates = self.extract_answers_ai(document_data, progress_callback=None, max_candidates=5000, 
+                                           chunk_range=None, ai_config=None, ai_max_pairs=25, ai_custom_prompt=None)
         
         qa_pairs = []
         for candidate in candidates:

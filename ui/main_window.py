@@ -97,6 +97,7 @@ class MainWindow:
         tools_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label="Tools", menu=tools_menu)
         tools_menu.add_command(label="Auto Extract Answers", command=self.auto_extract_answers)
+        tools_menu.add_command(label="AI Extract Q&A Pairs", command=self.ai_extract_qa_pairs)
         tools_menu.add_separator()
         tools_menu.add_command(label="Generate Questions", command=self.generate_questions)
         tools_menu.add_command(label="API Settings", command=self.show_api_settings)
@@ -266,6 +267,14 @@ class MainWindow:
             return
         
         self.answer_manager.show_auto_extract_dialog()
+    
+    def ai_extract_qa_pairs(self):
+        """AI extract Q&A pairs from current document"""
+        if not self.current_document:
+            messagebox.showwarning("Warning", "No document loaded. Please open a document first.")
+            return
+        
+        self.answer_manager.show_ai_extract_dialog()
     
     def generate_questions(self):
         """Generate questions for current answers"""

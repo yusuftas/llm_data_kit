@@ -14,15 +14,13 @@ from core.answer_extractor import AnswerExtractor, AnswerCandidate, ExtractionPr
 class AutoExtractionDialog:
     """Optimized auto-extraction dialog for large documents"""
     
-    def __init__(self, parent: tk.Widget, document_data: Dict[str, Any], ai_mode: bool = False):
+    def __init__(self, parent: tk.Widget, document_data: Dict[str, Any]):
         self.parent = parent
         self.document_data = document_data
-        self.ai_mode = ai_mode  # Pre-select AI mode if True
         self.result = None
         self.candidates = []
         self.displayed_candidates = []  # Subset currently displayed
         self.selected_indices = set()
-        self.ai_qa_pairs = []  # Store Q&A pairs from AI extraction
         
         # Optimized extractor
         self.extractor = AnswerExtractor()
@@ -41,10 +39,7 @@ class AutoExtractionDialog:
     def create_dialog(self):
         """Create the optimized auto-extraction dialog"""
         self.dialog = tk.Toplevel(self.parent)
-        if self.ai_mode:
-            self.dialog.title("AI Extract Q&A Pairs")
-        else:
-            self.dialog.title("Auto Extract Answers (Optimized)")
+        self.dialog.title("Auto Extract Answers")
 
         # Get dialog dimensions
         dialog_width = 900
@@ -72,8 +67,7 @@ class AutoExtractionDialog:
         main_frame.pack(fill=tk.BOTH, expand=True)
         
         # Title and document info
-        title_text = "AI Extract Q&A Pairs" if self.ai_mode else "Auto Extract Answers"
-        title_label = ttk.Label(main_frame, text=title_text, font=('Arial', 12, 'bold'))
+        title_label = ttk.Label(main_frame, text="Auto Extract Answers", font=('Arial', 12, 'bold'))
         title_label.pack(anchor=tk.W, pady=(0, 5))
         
         # Top section frame for fixed-height content
@@ -139,13 +133,12 @@ class AutoExtractionDialog:
         methods_inner_frame.pack(fill=tk.X, pady=(5, 0))
         
         self.method_vars = {
-            'sentences': tk.BooleanVar(value=not self.ai_mode),
-            'paragraphs': tk.BooleanVar(value=not self.ai_mode),
-            'lists': tk.BooleanVar(value=not self.ai_mode),
-            'definitions': tk.BooleanVar(value=not self.ai_mode),
-            'facts': tk.BooleanVar(value=not self.ai_mode),
-            'procedures': tk.BooleanVar(value=False),
-            'ai': tk.BooleanVar(value=self.ai_mode)
+            'sentences': tk.BooleanVar(value=True),
+            'paragraphs': tk.BooleanVar(value=True),
+            'lists': tk.BooleanVar(value=True),
+            'definitions': tk.BooleanVar(value=True),
+            'facts': tk.BooleanVar(value=True),
+            'procedures': tk.BooleanVar(value=False)
         }
         
         method_labels = {
@@ -154,8 +147,7 @@ class AutoExtractionDialog:
             'lists': 'List Items',
             'definitions': 'Definitions',
             'facts': 'Facts & Statistics',
-            'procedures': 'Procedures & Steps',
-            'ai': 'AI Extraction (Q&A Pairs)'
+            'procedures': 'Procedures & Steps'
         }
         
         # Arrange checkboxes in two columns
@@ -170,54 +162,15 @@ class AutoExtractionDialog:
         
         methods_list = list(self.method_vars.keys())
         for i, method in enumerate(methods_list):
-            frame = left_frame if i < 4 else right_frame
+            frame = left_frame if i < 3 else right_frame
             
-            if method == 'ai':
-                # Special layout for AI method with inline chunk range
-                ai_frame = ttk.Frame(frame)
-                ai_frame.pack(anchor=tk.W, pady=2, fill=tk.X)
-                
-                # AI checkbox
-                ai_checkbox = ttk.Checkbutton(
-                    ai_frame,
-                    text=method_labels[method],
-                    variable=self.method_vars[method],
-                    command=self.on_ai_method_changed
-                )
-                ai_checkbox.pack(side=tk.LEFT)
-                
-                # Chunk range inputs (initially hidden)
-                self.chunk_range_controls = ttk.Frame(ai_frame)
-                
-                ttk.Label(self.chunk_range_controls, text="Chunks:").pack(side=tk.LEFT, padx=(10, 5))
-                
-                self.start_chunk_var = tk.StringVar(value="1")
-                start_entry = ttk.Entry(self.chunk_range_controls, textvariable=self.start_chunk_var, width=4)
-                start_entry.pack(side=tk.LEFT)
-                
-                ttk.Label(self.chunk_range_controls, text="to").pack(side=tk.LEFT, padx=(3, 3))
-                
-                self.end_chunk_var = tk.StringVar(value=str(total_chunks))
-                end_entry = ttk.Entry(self.chunk_range_controls, textvariable=self.end_chunk_var, width=4)
-                end_entry.pack(side=tk.LEFT)
-                
-                ttk.Label(self.chunk_range_controls, text=f"(max: {total_chunks})", 
-                         font=('Arial', 8), foreground='gray').pack(side=tk.LEFT, padx=(5, 0))
-                
-                # Initially hide chunk range controls
-                if not self.ai_mode:
-                    self.chunk_range_controls.pack_forget()
-                else:
-                    self.chunk_range_controls.pack(side=tk.LEFT)
-            else:
-                # Regular checkbox for other methods
-                checkbox = ttk.Checkbutton(
-                    frame,
-                    text=method_labels[method],
-                    variable=self.method_vars[method],
-                    command=self.on_other_method_changed
-                )
-                checkbox.pack(anchor=tk.W, pady=2)
+            # Regular checkbox for all methods
+            checkbox = ttk.Checkbutton(
+                frame,
+                text=method_labels[method],
+                variable=self.method_vars[method]
+            )
+            checkbox.pack(anchor=tk.W, pady=2)
         
         # Filter options
         filter_frame = ttk.Frame(options_frame)
@@ -251,23 +204,9 @@ class AutoExtractionDialog:
         self.max_candidates_var = tk.StringVar(value="5000")
         ttk.Entry(filter_row2, textvariable=self.max_candidates_var, width=8).pack(side=tk.LEFT, padx=(5, 0))
         
-        # AI method warning
-        self.ai_warning_frame = ttk.Frame(options_frame)
-        self.ai_warning_label = ttk.Label(
-            self.ai_warning_frame,
-            text="⚠️ AI Extraction will use your configured API and may consume quota",
-            foreground="orange",
-            font=('Arial', 9)
-        )
-        self.ai_warning_label.pack()
-        
         # Extract button
         extract_btn = ttk.Button(options_frame, text="Start Extraction", command=self.start_extraction)
         extract_btn.pack(pady=(3, 0))
-        
-        # Show AI warning if AI mode is pre-selected
-        if self.ai_mode:
-            self.ai_warning_frame.pack(fill=tk.X, pady=(5, 0))
     
     
     def create_progress_section(self, parent):
@@ -301,41 +240,6 @@ class AutoExtractionDialog:
         # Initially hide progress section
         self.progress_frame.pack_forget()
     
-    def on_ai_method_changed(self):
-        """Handle AI method checkbox change"""
-        if self.method_vars['ai'].get():
-            # Show warning and handle mutual exclusivity
-            self.ai_warning_frame.pack(fill=tk.X, pady=(5, 0))
-            
-            # Show inline chunk range controls
-            if hasattr(self, 'chunk_range_controls'):
-                self.chunk_range_controls.pack(side=tk.LEFT)
-            
-            # When AI is selected, disable other methods
-            for method in ['sentences', 'paragraphs', 'lists', 'definitions', 'facts', 'procedures']:
-                self.method_vars[method].set(False)
-        else:
-            # Hide warning
-            self.ai_warning_frame.pack_forget()
-            
-            # Hide inline chunk range controls
-            if hasattr(self, 'chunk_range_controls'):
-                self.chunk_range_controls.pack_forget()
-            
-            # Re-enable some default methods if none are selected
-            if not any(self.method_vars[method].get() for method in self.method_vars.keys()):
-                self.method_vars['sentences'].set(True)
-                self.method_vars['paragraphs'].set(True)
-    
-    def on_other_method_changed(self):
-        """Handle non-AI method checkbox change"""
-        # If any non-AI method is selected, uncheck AI
-        other_methods = ['sentences', 'paragraphs', 'lists', 'definitions', 'facts', 'procedures']
-        if any(self.method_vars[method].get() for method in other_methods):
-            if self.method_vars['ai'].get():
-                self.method_vars['ai'].set(False)
-                # Trigger AI method change to hide controls
-                self.on_ai_method_changed()
     
     def create_results_section(self, parent):
         """Create results section with virtual scrolling"""
@@ -437,32 +341,6 @@ class AutoExtractionDialog:
                 messagebox.showwarning("Warning", "Please select at least one extraction method")
                 return
             
-            # Get chunk range for AI extraction
-            chunk_range = None
-            if 'ai' in selected_methods and hasattr(self, 'start_chunk_var'):
-                try:
-                    start_chunk = int(self.start_chunk_var.get()) - 1  # Convert to 0-based
-                    end_chunk = int(self.end_chunk_var.get())  # This will be exclusive
-                    
-                    # Validate chunk range
-                    metadata = self.document_data.get('metadata', {})
-                    total_chunks = metadata.get('chunk_count', 1)
-                    
-                    if start_chunk < 0:
-                        start_chunk = 0
-                    if end_chunk > total_chunks:
-                        end_chunk = total_chunks
-                    if start_chunk >= end_chunk:
-                        messagebox.showerror("Error", "Invalid chunk range: start chunk must be less than end chunk")
-                        return
-                    
-                    # Only set chunk_range if it's not the full range
-                    if start_chunk != 0 or end_chunk != total_chunks:
-                        chunk_range = {'start': start_chunk, 'end': end_chunk}
-                    
-                except ValueError:
-                    messagebox.showerror("Error", "Invalid chunk range: please enter valid numbers")
-                    return
             
             # Show progress section (it's now already in the bottom frame)
             self.progress_frame.pack(fill=tk.X, pady=(0, 5))
@@ -480,8 +358,7 @@ class AutoExtractionDialog:
                 progress_callback=self.on_extraction_progress,
                 completion_callback=self.on_extraction_complete,
                 error_callback=self.on_extraction_error,
-                max_candidates=max_candidates,
-                chunk_range=chunk_range
+                max_candidates=max_candidates
             )
             
         except ValueError as e:
@@ -512,16 +389,6 @@ class AutoExtractionDialog:
     def on_extraction_complete(self, candidates: List[AnswerCandidate]):
         """Handle extraction completion"""
         self.candidates = candidates
-        
-        # Special handling for AI extraction - also store Q&A pairs
-        if any(c.extraction_method == 'ai' for c in candidates):
-            self.ai_qa_pairs = []
-            for candidate in candidates:
-                if candidate.extraction_method == 'ai' and candidate.context:
-                    self.ai_qa_pairs.append({
-                        'question': candidate.context,
-                        'answer': candidate.text
-                    })
         
         self.update_results_display()
         
@@ -727,19 +594,6 @@ class AutoExtractionDialog:
             return
         
         selected_candidates = [self.candidates[i] for i in sorted(self.selected_indices) if i < len(self.candidates)]
-        
-        # Filter AI Q&A pairs to only include selected candidates
-        if self.ai_qa_pairs:
-            selected_ai_qa_pairs = []
-            for candidate in selected_candidates:
-                if candidate.extraction_method == 'ai' and candidate.context:
-                    # Find the corresponding Q&A pair
-                    qa_pair = {
-                        'question': candidate.context,
-                        'answer': candidate.text
-                    }
-                    selected_ai_qa_pairs.append(qa_pair)
-            self.ai_qa_pairs = selected_ai_qa_pairs
         
         self.result = selected_candidates
         self.dialog.destroy()

@@ -136,7 +136,7 @@ class AIExtractionDialog:
         # Update temperature label when scale changes
         temp_scale.configure(command=lambda val: self.temp_label.config(text=f"{float(val):.2f}"))
         
-        # Max tokens
+        # Max tokens (moved next to temperature)
         tokens_frame = ttk.Frame(config_frame)
         tokens_frame.pack(fill=tk.X)
         
@@ -174,57 +174,41 @@ class AIExtractionDialog:
         end_entry.pack(side=tk.LEFT, padx=(0, 5))
         
         ttk.Label(chunk_frame, text=f"(max: {total_chunks})", 
-                 font=('Arial', 8), foreground='gray').pack(side=tk.LEFT)
+                 font=('Arial', 8), foreground='gray').pack(side=tk.LEFT, padx=(5, 0))
         
-        # Max Q&A pairs per chunk
-        pairs_frame = ttk.Frame(options_frame)
-        pairs_frame.pack(fill=tk.X, pady=(0, 15))
-        
-        ttk.Label(pairs_frame, text="Max Q&A pairs per chunk:").pack(side=tk.LEFT)
+        # Max Q&A pairs per chunk (moved next to chunk range)
+        ttk.Label(chunk_frame, text="Max Q&A pairs:").pack(side=tk.LEFT, padx=(20, 0))
         
         self.max_pairs_var = tk.StringVar(value="25")
-        pairs_entry = ttk.Entry(pairs_frame, textvariable=self.max_pairs_var, width=6)
+        pairs_entry = ttk.Entry(chunk_frame, textvariable=self.max_pairs_var, width=6)
         pairs_entry.pack(side=tk.LEFT, padx=(5, 0))
         
         # Custom prompt section
-        prompt_label = ttk.Label(options_frame, text="Custom Prompt (optional):", font=('Arial', 9, 'bold'))
+        prompt_label = ttk.Label(options_frame, text="Custom Requirements (optional):", font=('Arial', 9, 'bold'))
         prompt_label.pack(anchor=tk.W, pady=(0, 5))
         
-        # Placeholder explanation
-        placeholder_label = ttk.Label(options_frame, 
-                                    text="Use {max_pairs} and {text_chunk} as placeholders in your prompt",
+        # Explanation
+        explanation_label = ttk.Label(options_frame, 
+                                    text="Customize the requirements for Q&A extraction. Format and text sections are added automatically.",
                                     font=('Arial', 8), foreground='gray')
-        placeholder_label.pack(anchor=tk.W, pady=(0, 5))
+        explanation_label.pack(anchor=tk.W, pady=(0, 5))
         
         self.prompt_text = scrolledtext.ScrolledText(options_frame, height=6, wrap=tk.WORD, font=('Arial', 9))
         self.prompt_text.pack(fill=tk.X, pady=(0, 10))
         
-        # Default prompt
-        default_prompt = """Extract up to {max_pairs} high-quality question-answer pairs from the following text. 
-
-REQUIREMENTS:
+        # Default requirements (simplified)
+        default_requirements = """REQUIREMENTS:
 1. Answers must be EXACT quotes from the provided text (no paraphrasing)
 2. Questions should be clear, specific, and naturally lead to the answer
 3. Focus on factual information, definitions, explanations, and key concepts
 4. Avoid yes/no questions - prefer questions that require detailed answers
-5. Ensure questions are varied in type (what, how, why, when, where, etc.)
-
-FORMAT: Return ONLY a JSON array like this:
-[
-  {{"question": "What is...", "answer": "exact text from passage"}},
-  {{"question": "How does...", "answer": "exact text from passage"}}
-]
-
-TEXT TO ANALYZE:
-{text_chunk}
-
-Return only the JSON array, no additional text."""
+5. Ensure questions are varied in type (what, how, why, when, where, etc.)"""
         
-        self.prompt_text.insert(1.0, default_prompt)
+        self.prompt_text.insert(1.0, default_requirements)
         
         # Reset prompt button
         reset_btn = ttk.Button(options_frame, text="Reset to Default", 
-                              command=lambda: self.reset_prompt(default_prompt))
+                              command=lambda: self.reset_prompt(default_requirements))
         reset_btn.pack(anchor=tk.W)
     
     def create_results_section(self, parent):
@@ -372,10 +356,10 @@ Return only the JSON array, no additional text."""
         """Refresh the models list"""
         self.load_models_async()
     
-    def reset_prompt(self, default_prompt):
-        """Reset prompt to default"""
+    def reset_prompt(self, default_requirements):
+        """Reset requirements to default"""
         self.prompt_text.delete(1.0, tk.END)
-        self.prompt_text.insert(1.0, default_prompt)
+        self.prompt_text.insert(1.0, default_requirements)
     
     def start_extraction(self):
         """Start AI extraction"""
@@ -437,10 +421,48 @@ Return only the JSON array, no additional text."""
                 temperature=self.temperature_var.get()
             )
             
-            # Get custom prompt if provided
-            custom_prompt = self.prompt_text.get(1.0, tk.END).strip()
-            if not custom_prompt:
-                custom_prompt = None
+            # Build complete prompt with custom requirements
+            custom_requirements = self.prompt_text.get(1.0, tk.END).strip()
+            
+            # Build full prompt with format and text sections
+            if custom_requirements:
+                full_prompt = f"""Extract up to {{max_pairs}} high-quality question-answer pairs from the following text.
+
+{custom_requirements}
+
+FORMAT: Return ONLY a JSON array like this:
+[
+  {{"question": "What is...", "answer": "exact text from passage"}},
+  {{"question": "How does...", "answer": "exact text from passage"}}
+]
+
+TEXT TO ANALYZE:
+{{text_chunk}}
+
+Return only the JSON array, no additional text."""
+            else:
+                # Use default if no custom requirements
+                full_prompt = """Extract up to {{max_pairs}} high-quality question-answer pairs from the following text.
+
+REQUIREMENTS:
+1. Answers must be EXACT quotes from the provided text (no paraphrasing)
+2. Questions should be clear, specific, and naturally lead to the answer
+3. Focus on factual information, definitions, explanations, and key concepts
+4. Avoid yes/no questions - prefer questions that require detailed answers
+5. Ensure questions are varied in type (what, how, why, when, where, etc.)
+
+FORMAT: Return ONLY a JSON array like this:
+[
+  {{"question": "What is...", "answer": "exact text from passage"}},
+  {{"question": "How does...", "answer": "exact text from passage"}}
+]
+
+TEXT TO ANALYZE:
+{{text_chunk}}
+
+Return only the JSON array, no additional text."""
+            
+            custom_prompt = full_prompt
             
             # Start extraction in thread
             chunk_range = {'start': start_chunk, 'end': end_chunk} if start_chunk != 0 or end_chunk != total_chunks else None

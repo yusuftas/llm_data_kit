@@ -53,7 +53,7 @@ class AIExtractionDialog:
         
         # Dialog dimensions
         dialog_width = 800
-        dialog_height = 900
+        dialog_height = 750
         
         self.dialog.minsize(dialog_width, dialog_height)
         self.dialog.transient(self.parent)
@@ -189,7 +189,7 @@ class AIExtractionDialog:
         
         # Explanation
         explanation_label = ttk.Label(options_frame, 
-                                    text="Customize the requirements for Q&A extraction. Format and text sections are added automatically.",
+                                    text="Customize the requirements for Q&A extraction.",
                                     font=('Arial', 8), foreground='gray')
         explanation_label.pack(anchor=tk.W, pady=(0, 5))
         
@@ -214,14 +214,14 @@ class AIExtractionDialog:
     def create_results_section(self, parent):
         """Create results display section"""
         results_frame = ttk.LabelFrame(parent, text="Extraction Results", padding=5)
-        results_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
+        results_frame.pack(fill=tk.X, pady=(0, 5))
         
         # Results list with scrollbar
         list_frame = ttk.Frame(results_frame)
         list_frame.pack(fill=tk.BOTH, expand=True)
         
         columns = ('Question', 'Answer Preview')
-        self.results_tree = ttk.Treeview(list_frame, columns=columns, show='tree headings', height=8)
+        self.results_tree = ttk.Treeview(list_frame, columns=columns, show='tree headings', height=6)
         
         self.results_tree.heading('#0', text='Select')
         self.results_tree.heading('Question', text='Question')

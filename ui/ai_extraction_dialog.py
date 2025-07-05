@@ -112,7 +112,7 @@ class AIExtractionDialog:
         ttk.Label(model_frame, text="Model:").pack(side=tk.LEFT)
         
         self.model_var = tk.StringVar(value=self.api_config.get('model', 'deepseek/deepseek-chat-v3-0324:free'))
-        self.model_combo = ttk.Combobox(model_frame, textvariable=self.model_var, width=40, state="readonly")
+        self.model_combo = ttk.Combobox(model_frame, textvariable=self.model_var, width=90, state="readonly")
         self.model_combo.pack(side=tk.LEFT, padx=(5, 5))
         
         # Refresh models button
